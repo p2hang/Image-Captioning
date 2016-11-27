@@ -28,6 +28,7 @@ function M.parse(arg)
     --]]
     cmd:option('-cuda',            false,             'Use cuda tensor')
     cmd:option('-gpuid',           1,                 'gpuid')
+    cmd:option('-embeddingDim',   300,              'the embedding dimension of each vector')
 
     local opt = cmd:parse(arg or {})
 
