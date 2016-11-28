@@ -4,6 +4,7 @@ require 'os'
 require 'xlua'
 require 'cunn'
 require 'cudnn'
+require 'loadcaffe'
 
 local tnt = require 'torchnet'
 local image = require 'image'
@@ -47,3 +48,11 @@ end
 function getIterator(dataset)
 
 end
+
+-- load pretrained image model
+-- loadcaffe [https://github.com/szagoruyko/loadcaffe]
+local protobuf = 'models/caffe/' .. opt.protobuf
+local caffemodel = 'models/caffe/' .. opt.caffemodel
+local net = loadcaffe.load(protobuf, caffemodel)
+
+-- TODO: connect with language model
