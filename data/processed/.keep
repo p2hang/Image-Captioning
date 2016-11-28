@@ -1,9 +1,10 @@
 files should be included in the data/processed/ directory
+After running the preprossing step, all following document should be generated automatically
 
 initEmb.t7                -- the glove embedding for words appeared in COCO caption
 ivocab.t7                 -- Inversed vocab, word_id: word
 train.t7                  -- torch table of word id for the training annotation
 train_annotations.txt     -- image id and caption words for training dataset
-val.t7					  -- torch table of word id for the validation annotation
-val_annotations.txt		  -- image id and caption words for validation datset
+val.t7                    -- torch table of word id for the validation annotation
+val_annotations.txt	      -- image id and caption words for validation datset
 vocab.t7                  -- vocab, word: word_id

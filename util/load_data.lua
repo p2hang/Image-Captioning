@@ -130,6 +130,13 @@ function data_loader:buildVocab2Emb(opt)
 end
 
 
+function data_loader:loadImage(data_type, image_id)
+	assert(data_type == "train" or data_type == "val")
+	id = string.format("%012d", image_id)
+	return image.load("data/"..data_type.."2014/COCO_"..data_type.."2014_"..id..".jpg")
+end
+
+
 
 
 
