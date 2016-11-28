@@ -3,3 +3,4 @@
 *.t7
 *.json
 .DS_Store
+.idea

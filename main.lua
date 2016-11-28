@@ -2,7 +2,13 @@ require 'torch'
 require 'optim'
 require 'os'
 require 'xlua'
+<<<<<<< HEAD
 ld = require "util/load_data"
+=======
+require 'cunn'
+require 'cudnn'
+require 'loadcaffe'
+>>>>>>> 5bd998ae5dc2ad546152151224c688e6dc19d6c8
 
 local tnt = require 'torchnet'
 local image = require 'image'
@@ -91,15 +97,25 @@ if opt.cuda then
     end
 end
 
-engine.hooks.onStart = function(state)
-    meter:reset()
-    clerr:reset()
-    timer:reset()
-    batch = 1
-    if state.training then
-        mode = 'Train'
-    else
-        mode = 'Val'
-    end
-end
+
+-- engine.hooks.onStart = function(state)
+--     meter:reset()
+--     clerr:reset()
+--     timer:reset()
+--     batch = 1
+--     if state.training then
+--         mode = 'Train'
+--     else
+--         mode = 'Val'
+--     end
+-- end
+
+
+-- load pretrained image model
+-- loadcaffe [https://github.com/szagoruyko/loadcaffe]
+local protobuf = 'models/caffe/' .. opt.protobuf
+local caffemodel = 'models/caffe/' .. opt.caffemodel
+local net = loadcaffe.load(protobuf, caffemodel)
+
+-- TODO: connect with language model
 
