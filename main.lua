@@ -1,14 +1,10 @@
 require 'torch'
 require 'optim'
 require 'os'
-require 'xlua'
-<<<<<<< HEAD
-ld = require "util/load_data"
-=======
+require 'xlua'require "util/load_data"
 require 'cunn'
 require 'cudnn'
 require 'loadcaffe'
->>>>>>> 5bd998ae5dc2ad546152151224c688e6dc19d6c8
 
 local tnt = require 'torchnet'
 local image = require 'image'
@@ -58,7 +54,7 @@ function getIterator(data_type)
                     list = torch.range(1, dataset:size(1)):long(),
                     load = function(idx)
                         return{
-                            input = ld:loadImage(data_type, dataset[idx].image_id)
+                            input = ld:loadImage(data_type, dataset[idx].image_id),
                             target = dataset[idx].caption
                         }
                     end,
