@@ -38,37 +38,6 @@ function vggLSTM:loadImageModel(prototxt, binary)
 	self.imageModel = imageModel
 end
 
-function vggLSTM:buildModel()
-	------------------------ image module -----------------------
-	-- this will load the network and print it's structure
-
-
-
-	----------------------- image mapping module -----------------
-
-
-
-	----------------------- image mapping module -----------------
-	local lstm_unit = nn.LSTM(self.hiddenSize, self.hiddenSize) -- use fast or not?
-
-	local rnn = nn.Sequential()
-	:add(nn.Linear(self.inputSize, self.hiddenSize))
-	:add(lstm_unit)
-	:add(nn.NormStabilizer())
-	:add(nn.Linear(self.hiddenSize, self.inputSize))
-	:add(nn.HardTanh())
-
-	-- let the h0 of the lstm unit share the parameters of the output of the visual feature mapping
-	lstm_unit.prevOutput = visual_feature.output
-
-	local lm = nn.Sequencer(rnn)
-
-	----------------------- add all the three above to the model -----------------
-	vggLSTM.im = image_module
-	vggLSTM.vf = visual_feature
-	vggLSTM.lm = lm
-end
-
 function vggLSTM:forward(input)
 	-- image nets
 	self.image_representation = self.vgg19:forward(input)
