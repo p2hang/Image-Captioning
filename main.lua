@@ -15,7 +15,7 @@ local WIDTH, HEIGHT = 224, 224--TODO: image size
 -- local DATA_PATH = (opt.data ~= '' and opt.data or './data/')
 
 ImgCap = {}
-include 'ImgCapModel/vggLSTM.lua'
+
 
 torch.setdefaulttensortype('torch.DoubleTensor')
 
@@ -116,7 +116,7 @@ config.imageModelPrototxt = 'models/caffe/' .. opt.protobuf or 'VGG_ILSVRC_19_la
 config.imageModelBinary = 'models/caffe/' .. opt.caffemodel or '/VGG_ILSVRC_19_layers.caffemodel'
 config.num_words = opt.numWords
 
-local model = require("models/" .. opt.model)
+local model = require("ImgCapModel/" .. opt.model)
 model.__init(config)
 
 
