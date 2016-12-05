@@ -55,3 +55,10 @@ function vggLSTM:backward(input, grad)
 end
 
 
+function vggLSTM:parameters()
+    local modules = nn.Parallel()
+    modules:add(self.embedding_vec)
+           :add(self.imageModel)
+           :add(self.LSTM)
+    return modules:parameters()
+end
