@@ -108,8 +108,18 @@ function getIterator(data_type)
     }
 end
 
+
+local config = {} -- config for model, default as vgg
+config.embeddingDim = opt.dim
+config.imageOutputLayer = opt.imageLayer
+config.imageModelPrototxt = 'models/caffe/' .. opt.protobuf or 'VGG_ILSVRC_19_layers_deploy.prototxt'
+config.imageModelBinary = 'models/caffe/' .. opt.caffemodel or '/VGG_ILSVRC_19_layers.caffemodel'
+config.num_words = opt.numWords
+
 local model = require("models/" .. opt.model)
--- TODO:  load model param
+model.__init(config)
+
+
 
 local engine = tnt.OptimEngine()
 local meter = tnt.AverageValueMeter()
@@ -151,11 +161,6 @@ end
 -- end
 
 
--- load pretrained image model
--- loadcaffe [https://github.com/szagoruyko/loadcaffe]
-local protobuf = 'models/caffe/' .. opt.protobuf
-local caffemodel = 'models/caffe/' .. opt.caffemodel
-local net = loadcaffe.load(protobuf, caffemodel)
 
--- TODO: connect with language model
+
 
