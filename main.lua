@@ -1,9 +1,10 @@
 require 'torch'
 require 'optim'
 require 'os'
-require 'xlua'require "util/load_data"
-require 'cunn'
-require 'cudnn'
+require 'xlua'
+ld = require "util/load_data"
+-- require 'cunn'
+-- require 'cudnn'
 require 'loadcaffe'
 
 local tnt = require 'torchnet'
@@ -20,8 +21,9 @@ ImgCap = {}
 torch.setdefaulttensortype('torch.DoubleTensor')
 
 torch.manualSeed(opt.manualSeed)
-cutorch.manualSeedAll(opt.manualSeed)
-
+-- cutorch.manualSeedAll(opt.manualSeed)
+-- include("ImgCapModel/" .. opt.model .. '.lua')
+require('ImgCapModel/' .. opt.model)
 
 -- data transformation
 function resize(img)
@@ -29,7 +31,7 @@ function resize(img)
 end
 
 function padInput(ip)
-    local input = torch.IntTensor(32):fills(1)
+    local input = torch.IntTensor(32):fill(1)
     if ip:size()[1] < 32 then
         len = tg:size()[1]
     else
@@ -56,7 +58,7 @@ function transformInput(inp)
 end
 
 function padTarget(tg)
-    local target = torch.IntTensor(32):fills(1)
+    local target = torch.IntTensor(32):fill(1)
     if tg:size()[1] < 32 then
         len = tg:size()[1]
     else
@@ -97,8 +99,8 @@ function getIterator(data_type)
                     list = torch.range(1, dataset:size(1)):long(),
                     load = function(idx)
                         return{
-                            input = transformInput({'image': ld:loadImage(data_type, dataset[idx].image_id),
-                                     'caption': dataset[idx].caption}),
+                            input = transformInput({['image']= ld:loadImage(data_type, dataset[idx].image_id),
+                                     ['caption'] = dataset[idx].caption}),
                             target = transformTarget(dataset[idx].caption)
                         }
                     end,
@@ -110,14 +112,14 @@ end
 
 
 local config = {} -- config for model, default as vgg
-config.embeddingDim = opt.dim
+config.embeddingDim = opt.embeddingDim
 config.imageOutputLayer = opt.imageLayer
 config.imageModelPrototxt = 'models/caffe/' .. opt.protobuf or 'VGG_ILSVRC_19_layers_deploy.prototxt'
-config.imageModelBinary = 'models/caffe/' .. opt.caffemodel or '/VGG_ILSVRC_19_layers.caffemodel'
+config.imageModelBinary = 'models/caffe/' .. opt.caffemodel or 'VGG_ILSVRC_19_layers.caffemodel'
 config.num_words = opt.numWords
+local model = ImgCap.vggLSTM(config)
 
-local model = require("ImgCapModel/" .. opt.model)
-model.__init(config)
+-- model.__init(config)
 
 
 

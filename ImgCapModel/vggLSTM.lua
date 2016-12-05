@@ -2,42 +2,46 @@ require('nn')
 require('nngraph')
 require('rnn')
 require 'loadcaffe'
+-- require "util/load_data"
 local vggLSTM, parent = torch.class('ImgCap.vggLSTM', 'nn.Module')
 
 function vggLSTM:__init(config)
 
     self.vocab = ld:loadVocab()
     self.ivocab = ld:loadiVocab()
-    self.num_words = #ivocab
-    self.embedding_vec = nn.LookupTable(config.num_words, config.embeddingDim)
+    self.num_words = #self.ivocab
+    self.embedding_vec = nn.LookupTable(self.num_words, config.embeddingDim)
     self.embedding_vec.weight:copy(ld:loadVocab2Emb())
 
     -- Load image model after remove the last few layers.
     -- loadcaffe [https://github.com/szagoruyko/loadcaffe]
     -- And remove the layers after last linear layer. For vgg last is 42, (4096 -> 4096)
-    local imageModel = loadcaffe.load(config.prototxt, config.binary)
+    local imageModel = loadcaffe.load(config.imageModelPrototxt, config.imageModelBinary)
     for i = #imageModel.modules, config.imageOutputLayer + 1, -1 do
         imageModel:remove(i)
     end
+
     self.imageModel = imageModel
 
 
     -- visual rescale layer
-    local imageOutputSize = (#imageModel.modules[config.imageOutputLayer].weight)[1]
-    self.visualRescale = nn.Sequential()
-            :add(nn.Linear(imageOutputSize, self.embeddingDim))
+    local imageOutputSize = (#self.imageModel.modules[config.imageOutputLayer].weight)[1]
+    -- print(imageOutputSize)
+    self.visualRescale = nn.Linear(imageOutputSize, config.embeddingDim)
 
 
     -- language model.
-    local LSTMcell = nn.Sequential()
+    LSTMcell = nn.Sequential()
             :add(nn.LSTM(config.embeddingDim, config.embeddingDim, 60))
-            :add(nn.Linear(config.embeddingDim, config.num_words))
-
+            :add(nn.Linear(config.embeddingDim, self.num_words))
+    print(torch.isTypeOf(LSTMcell, 'nn.Module'))
     self.LSTM = nn.Sequencer(LSTMcell)
 end
 
 
-function vggLSTM:forward(inputImage, inputText)
+function vggLSTM:forward(input)
+    local inputImage = input.image 
+    local inputText = input.caption
     -- image nets
     self.outputImageModel = self.imageModel:forward(inputImage)
     self.visualFeatureRescaled = self.visualRescale:forward(self.outputImageModel)
@@ -51,14 +55,16 @@ function vggLSTM:forward(inputImage, inputText)
 end
 
 function vggLSTM:backward(input, grad)
+    local inputImage = input.image 
+    local inputText = input.caption
     -- backprop the language model
-    local gradLSTMInput = self.LSTM:backward(self.visualFeatureRescaled, grad)
+    local gradLSTMInput = self.LSTM:backward(inputText, grad)
 
     -- backprop the rescale visual feature layer
     local gradVisualFeature = self.visualRescale:backward(self.outputImageModel, gradLSTMInput)
 end
 
-return vggLSTM
+
 
 
 function vggLSTM:parameters()
@@ -68,3 +74,5 @@ function vggLSTM:parameters()
            :add(self.LSTM)
     return modules:parameters()
 end
+
+return vggLSTM

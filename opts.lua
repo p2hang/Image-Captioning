@@ -23,8 +23,8 @@ function M.parse(arg)
     cmd:option('-continueTrain',    0,              'Continue to train on certain epoch')
     cmd:option('-sub',              '',             'The submission file index')
     cmd:option('-AnnealingLR',      false,          'Whether we have annealing learning rate')
-    cmd:option('-protobuf',         '',             'protobuf to deploy the caffe model')
-    cmd:option('-caffemodel',       '',             'pretrained binary caffe model')
+    cmd:option('-protobuf',         "VGG_ILSVRC_19_layers_deploy.prototxt",    'protobuf to deploy the caffe model')
+    cmd:option('-caffemodel',       "VGG_ILSVRC_19_layers.caffemodel",             'pretrained binary caffe model')
     cmd:option('-cuda',             false,          'Use cuda tensor')
     cmd:option('-gpuid',            1,              'gpuid')
     cmd:option('-embeddingDim',     300,            'the embedding dimension of each vector')
@@ -34,9 +34,9 @@ function M.parse(arg)
 
     local opt = cmd:parse(arg or {})
 
-    if opt.model == '' or not paths.filep('models/'..opt.model..'.lua') then
-        cmd:error('Invalid model ' .. opt.model)
-    end
+    -- if opt.model == '' or not paths.filep('models/'..opt.model..'.lua') then
+    --     cmd:error('Invalid model ' .. opt.model)
+    -- end
 
     return opt
 end
