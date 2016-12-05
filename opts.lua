@@ -18,19 +18,19 @@ function M.parse(arg)
     cmd:option('-momentum',         0.9,            'momentum')
     cmd:option('-weightDecay',      1e-4,           'weight decay')
     cmd:option('-logDir',           'logs',         'log directory')
-    cmd:option('-model',            'init',         'Model to use for training')
+    cmd:option('-model',            'vggLSTM',      'Model to use for training')
     cmd:option('-verbose',          'false',        'Print stats for every batch')
     cmd:option('-continueTrain',    0,              'Continue to train on certain epoch')
     cmd:option('-sub',              '',             'The submission file index')
     cmd:option('-AnnealingLR',      false,          'Whether we have annealing learning rate')
     cmd:option('-protobuf',         '',             'protobuf to deploy the caffe model')
     cmd:option('-caffemodel',       '',             'pretrained binary caffe model')
-    --[[
-    -- Hint: Use this option to convert your code to use GPUs
-    --]]
-    cmd:option('-cuda',            false,             'Use cuda tensor')
-    cmd:option('-gpuid',           1,                 'gpuid')
-    cmd:option('-embeddingDim',   300,              'the embedding dimension of each vector')
+    cmd:option('-cuda',             false,          'Use cuda tensor')
+    cmd:option('-gpuid',            1,              'gpuid')
+    cmd:option('-embeddingDim',     300,            'the embedding dimension of each vector')
+    cmd:option('-imageLayer',       42,             'last layer of the image model')
+    cmd:option('-numWords',         0,              'last layer of the image model')
+    -- TODO: num words default value
 
     local opt = cmd:parse(arg or {})
 
