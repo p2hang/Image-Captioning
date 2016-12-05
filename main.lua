@@ -8,11 +8,11 @@ ld = require "util/load_data"
 require 'loadcaffe'
 
 local tnt = require 'torchnet'
-local image = require 'image'
+-- local image = require 'image'
 local optParser = require 'opts'
 local opt = optParser.parse(arg)
 
-local WIDTH, HEIGHT = 224, 224--TODO: image size
+
 -- local DATA_PATH = (opt.data ~= '' and opt.data or './data/')
 
 ImgCap = {}
@@ -26,57 +26,6 @@ torch.manualSeed(opt.manualSeed)
 require('ImgCapModel/' .. opt.model)
 
 -- data transformation
-function resize(img)
-    return image.scale(img, WIDTH,HEIGHT)
-end
-
-function padInput(ip)
-    local input = torch.IntTensor(32):fill(1)
-    if ip:size()[1] < 32 then
-        len = tg:size()[1]
-    else
-        len = 31
-    end
-    input[1] = 2
-    for i = 1, len do 
-        input[i + 1] = input[i]
-    end
-end
-
-
-function transformInput(inp)
-    local sample = {}
-    local f = tnt.transform.compose{
-        [1] = resize
-    }
-    local fc = tnt.transform.compose{
-        [1] = padInput
-    }
-    sample.image = f(inp.image)
-    sample.caption = fc(inp.caption)
-    return sample 
-end
-
-function padTarget(tg)
-    local target = torch.IntTensor(32):fill(1)
-    if tg:size()[1] < 32 then
-        len = tg:size()[1]
-    else
-        len = 31
-    end
-
-    for i = 1, len do 
-        target[i] = tg[i]
-    end
-    target[len + 1] = 3
-    return target 
-end
-
-function transformTarget(tg)
-    local f = tnt.transform.compose{
-        [1] = padTarget
-    }
-end
 
 
 
@@ -89,14 +38,73 @@ function getIterator(data_type)
     assert(data_type == "train" or data_type == "val")
     return tnt.ParallelDatasetIterator{
         nthread = 1,
-        init = function() require 'torchnet' end,
-        closure = function()
+        init = function() 
+            require 'torchnet' 
+            ld = require "util/load_data"
             
+            end,
+        closure = function()
             local dataset = ld:loadData(data_type)
+            require 'image'
+            local WIDTH, HEIGHT = 224, 224
+            function resize(img)
+                return image.scale(img, WIDTH,HEIGHT)
+            end
+
+            function padInput(ip)
+                local input = torch.IntTensor(32):fill(1)
+                if ip:size()[1] < 32 then
+                    len = ip:size()[1]
+                else
+                    len = 31
+                end
+                input[1] = 2
+                for i = 1, len do 
+                    input[i + 1] = input[i]
+                end
+                return input
+            end
+
+
+            function transformInput(inp)
+                local sample = {}
+                local f = tnt.transform.compose{
+                    [1] = resize
+                }
+                local fc = tnt.transform.compose{
+                    [1] = padInput
+                }
+                sample.image = f(inp.image)
+                sample.caption = fc(inp.caption)
+                return sample 
+            end
+
+            function padTarget(tg)
+                local target = torch.IntTensor(32):fill(1)
+                if tg:size()[1] < 32 then
+                    len = tg:size()[1]
+                else
+                    len = 31
+                end
+
+                for i = 1, len do 
+                    target[i] = tg[i]
+                end
+                target[len + 1] = 3
+                return target 
+            end
+
+            function transformTarget(tg)
+                local f = tnt.transform.compose{
+                    [1] = padTarget
+                }
+                return f(tg)
+            end
+
             return tnt.BatchDataset{
                 batchsize = 1,
                 dataset = tnt.ListDataset{
-                    list = torch.range(1, dataset:size(1)):long(),
+                    list = torch.range(1, #dataset):long(),
                     load = function(idx)
                         return{
                             input = transformInput({['image']= ld:loadImage(data_type, dataset[idx].image_id),
@@ -111,21 +119,24 @@ function getIterator(data_type)
 end
 
 
+
+
 local config = {} -- config for model, default as vgg
 config.embeddingDim = opt.embeddingDim
 config.imageOutputLayer = opt.imageLayer
 config.imageModelPrototxt = 'models/caffe/' .. opt.protobuf or 'VGG_ILSVRC_19_layers_deploy.prototxt'
 config.imageModelBinary = 'models/caffe/' .. opt.caffemodel or 'VGG_ILSVRC_19_layers.caffemodel'
 config.num_words = opt.numWords
+
 local model = ImgCap.vggLSTM(config)
 
--- model.__init(config)
+
 
 
 
 local engine = tnt.OptimEngine()
 local meter = tnt.AverageValueMeter()
-local criterion = nn.Sequencer(nn.ClassNLLCriterion())
+local criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
 local clerr = tnt.ClassErrorMeter{topk = {3}}
 local timer = tnt.TimeMeter()
 local batch = 1 
@@ -140,7 +151,7 @@ if opt.cuda then
     criterion:cuda()
     local igpu, tgpu = torch.CudaTensor(), torch.CudaTensor()
         engine.hooks.onSample = function(state)
-        igpu:resize(state.sample.input:size() ):copy(state.sample.input)
+        igpu:resize(state.sample.input:size()):copy(state.sample.input)
         state.sample.input = igpu
         if state.sample.target then
             tgpu:resize(state.sample.target:size()):copy(state.sample.target)
@@ -150,19 +161,59 @@ if opt.cuda then
 end
 
 
--- engine.hooks.onStart = function(state)
---     meter:reset()
---     clerr:reset()
---     timer:reset()
---     batch = 1
---     if state.training then
---         mode = 'Train'
---     else
---         mode = 'Val'
---     end
--- end
+engine.hooks.onStart = function(state)
+    meter:reset()
+    clerr:reset()
+    timer:reset()
+    batch = 1
+    if state.training then
+        mode = 'Train'
+    else
+        mode = 'Val'
+    end
+end
+
+engine.hooks.onForward = function(state)
+    state.sample.target = state.sample.target[1]
+end
+
+engine.hooks.onForwardCriterion = function(state)
+    meter:add(state.criterion.output)
+    clerr:add(state.network.output, state.sample.target)
+    if opt.verbose == true then
+        print(string.format("%s Batch: %d/%d; avg. loss: %2.4f; avg. error: %2.4f",
+                mode, batch, 41170, meter:value(), clerr:value{k = 1}))
+    else
+        xlua.progress(batch, 41170)
+    end
+    batch = batch + 1 -- batch increment has to happen here to work for train, val and test.
+    timer:incUnit()
+end
 
 
+engine.hooks.onEnd = function(state)
+    print(string.format("%s: avg. loss: %2.4f; avg. error: %2.4f, time: %2.4f",
+    mode, meter:value(), clerr:value{k = 1}, timer:value()))
+end
+
+local lr = opt.LR 
+local epoch = 1
+while epoch <= opt.nEpochs do 
+    engine:train{
+        network = model,
+        criterion = criterion,
+        iterator = getIterator('train'),
+        optimMethod = optim.sgd,
+        maxepoch = 1,
+        config = {
+            learningRate = lr,
+            momentum = opt.momentum
+        }
+    }
+
+
+    epoch = epoch + 1
+end
 
 
 

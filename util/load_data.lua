@@ -3,6 +3,7 @@ data_loader = {}
 data_loader.__index = data_loader
 
 require 'paths'
+require 'image'
 local stringx = require 'pl.stringx'
 function data_loader:init(opt)
 	self.embeddingDim = opt.embeddingDim

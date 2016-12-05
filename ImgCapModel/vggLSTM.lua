@@ -6,7 +6,6 @@ require 'loadcaffe'
 local vggLSTM, parent = torch.class('ImgCap.vggLSTM', 'nn.Module')
 
 function vggLSTM:__init(config)
-
     self.vocab = ld:loadVocab()
     self.ivocab = ld:loadiVocab()
     self.num_words = #self.ivocab
@@ -26,22 +25,32 @@ function vggLSTM:__init(config)
 
     -- visual rescale layer
     local imageOutputSize = (#self.imageModel.modules[config.imageOutputLayer].weight)[1]
-    -- print(imageOutputSize)
     self.visualRescale = nn.Linear(imageOutputSize, config.embeddingDim)
-
 
     -- language model.
     LSTMcell = nn.Sequential()
             :add(nn.LSTM(config.embeddingDim, config.embeddingDim, 60))
             :add(nn.Linear(config.embeddingDim, self.num_words))
-    print(torch.isTypeOf(LSTMcell, 'nn.Module'))
     self.LSTM = nn.Sequencer(LSTMcell)
 end
 
+function vggLSTM:separateBatch(input)
+    local batch_size = #input
+    image_batch = {}
+    caption_batch = {}
+    for i = 1,batch_size do
+        table.insert(image_batch, input[i].image)
+        table.insert(caption_batch, input[i].caption)
+    end
+    return {['image']=image_batch, ['caption']=caption_batch}
+end
 
 function vggLSTM:forward(input)
-    local inputImage = input.image 
-    local inputText = input.caption
+    -- local separatedBatch = self:separateBatch(input)
+    -- local inputImage = separatedBatch.image
+    -- local inputText = separatedBatch.captions
+    local inputImage = input[1].image -- To change
+    local inputText = input[1].caption -- to change
     -- image nets
     self.outputImageModel = self.imageModel:forward(inputImage)
     self.visualFeatureRescaled = self.visualRescale:forward(self.outputImageModel)
@@ -50,18 +59,19 @@ function vggLSTM:forward(input)
     self.LSTM.module.module.modules[1].userPrevOutput = self.visualFeatureRescaled
 
     -- LSTM
-    self.output = self.LSTM:forward(inputText)
+    self.text_embedding = self.embedding_vec:forward(inputText)
+    self.output = self.LSTM:forward(self.text_embedding)
     return self.output
 end
 
 function vggLSTM:backward(input, grad)
-    local inputImage = input.image 
-    local inputText = input.caption
+    local inputImage = input[1].image -- to change
+    local inputText = input[1].caption -- to change
     -- backprop the language model
-    local gradLSTMInput = self.LSTM:backward(inputText, grad)
-
+    local gradLSTMInput = self.LSTM:backward(self.text_embedding, grad)
     -- backprop the rescale visual feature layer
-    local gradVisualFeature = self.visualRescale:backward(self.outputImageModel, gradLSTMInput)
+    local gradVisualFeature = self.visualRescale:backward(self.outputImageModel, gradLSTMInput[1])
+
 end
 
 
