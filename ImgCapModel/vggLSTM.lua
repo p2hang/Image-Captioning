@@ -70,14 +70,15 @@ function vggLSTM:forward(input)
     self.visualFeatureRescaled = self.visualRescale:forward(self.outputImageModel)
 
     -- vggLSTM -> LSTM -> sequencer -> recursor -> LSTMcell -> nn.LSTM, init h0 with visual feature
-    print(self.LSTM.module.module.modules[1].userPrevOutput)
+    -- print(self.LSTM.module.module.modules[1].userPrevOutput)
     print(self.visualFeatureRescaled:size())
     self.LSTM.module.module.modules[1].userPrevOutput = self.visualFeatureRescaled
 
     -- LSTM
     self.text_embedding = self.embedding_vec:forward(inputText)
     self.text_embedding_transpose = self.embed_transpose:forward(self.text_embedding)
-    -- print(self.text_embedding_transpose:size())
+    print(self.text_embedding_transpose:size())
+
     self.LSTMout = self.LSTM:forward(self.text_embedding_transpose)
     self.output = self.output_transpose:forward(self.LSTMout)
 
@@ -98,7 +99,10 @@ function vggLSTM:backward(input, grad)
     local lstmInGrad = self.LSTM:backward(self.text_embedding_transpose, gradT)
     local lstmInGradT = self.embed_transpose:backward(self.text_embedding, lstmInGrad)
     -- backprop the rescale visual feature layer
-    local gradVisualFeature = self.visualRescale:backward(self.outputImageModel, self.LSTM.gradPrevOutput)
+    print("grad prev output: ")
+    print(self.outputImageModel:size())
+    print(self.LSTM.module.module.modules[1].gradPrevOutput:size())
+    local gradVisualFeature = self.visualRescale:backward(self.outputImageModel, self.LSTM.module.module.modules[1].gradPrevOutput)
 
     self.embedding_vec:backward(inputText, lstmInGradT)
 end

@@ -2,6 +2,7 @@ require 'torch'
 require 'optim'
 require 'os'
 require 'xlua'
+require 'math'
 ld = require "util/load_data"
 -- require 'cunn'
 -- require 'cudnn'
@@ -12,7 +13,7 @@ local tnt = require 'torchnet'
 local optParser = require 'opts'
 local opt = optParser.parse(arg)
 
-local train_set_size = 4141113
+local train_set_size = 414113
 local val_set_size = 201654
 
 
@@ -45,6 +46,7 @@ function getIterator(data_type)
             end,
         closure = function()
             local dataset = ld:loadData(data_type)
+            print(data_type .. 'set size: '.. #dataset)
             require 'image'
             local WIDTH, HEIGHT = 224, 224
             function resize(img)
@@ -127,6 +129,7 @@ config.imageOutputLayer = opt.imageLayer
 config.imageModelPrototxt = 'models/caffe/' .. opt.protobuf or 'VGG_ILSVRC_19_layers_deploy.prototxt'
 config.imageModelBinary = 'models/caffe/' .. opt.caffemodel or 'VGG_ILSVRC_19_layers.caffemodel'
 config.num_words = opt.numWords
+config.batchsize = opt.batchsize
 
 local model = ImgCap.vggLSTM(config)
 
@@ -168,10 +171,10 @@ engine.hooks.onStart = function(state)
     batch = 1
     if state.training then
         mode = 'Train'
-        num_iters = train_set_size / opt.batchsize
+        num_iters = math.floor(train_set_size / opt.batchsize)
     else
         mode = 'Val'
-        num_iters = val_set_size / opt.batchsize
+        num_iters = math.floor(val_set_size / opt.batchsize)
     end
 end
 
@@ -193,7 +196,7 @@ end
 
 engine.hooks.onForwardCriterion = function(state)
     meter:add(state.criterion.output)
-    clerr:add(state.network.output, state.sample.target)
+    --clerr:add(state.network.output, state.sample.target)
     if opt.verbose == true then
         print(string.format("%s Batch: %d/%d; avg. loss: %2.4f; avg. error: %2.4f",
                 mode, batch, num_iters, meter:value(), clerr:value{k = 1}))
