@@ -12,8 +12,9 @@ local tnt = require 'torchnet'
 local optParser = require 'opts'
 local opt = optParser.parse(arg)
 
+local train_set_size = 4141113
+local val_set_size = 201654
 
--- local DATA_PATH = (opt.data ~= '' and opt.data or './data/')
 
 ImgCap = {}
 
@@ -22,7 +23,6 @@ torch.setdefaulttensortype('torch.DoubleTensor')
 
 torch.manualSeed(opt.manualSeed)
 -- cutorch.manualSeedAll(opt.manualSeed)
--- include("ImgCapModel/" .. opt.model .. '.lua')
 require('ImgCapModel/' .. opt.model)
 
 -- data transformation
@@ -102,7 +102,7 @@ function getIterator(data_type)
             end
 
             return tnt.BatchDataset{
-                batchsize = 1,
+                batchsize = 2,
                 dataset = tnt.ListDataset{
                     list = torch.range(1, #dataset):long(),
                     load = function(idx)
@@ -174,7 +174,7 @@ engine.hooks.onStart = function(state)
 end
 
 engine.hooks.onForward = function(state)
-    state.sample.target = state.sample.target[1]
+    -- state.sample.target = state.sample.target[1]
 end
 
 engine.hooks.onForwardCriterion = function(state)
@@ -182,7 +182,7 @@ engine.hooks.onForwardCriterion = function(state)
     clerr:add(state.network.output, state.sample.target)
     if opt.verbose == true then
         print(string.format("%s Batch: %d/%d; avg. loss: %2.4f; avg. error: %2.4f",
-                mode, batch, 41170, meter:value(), clerr:value{k = 1}))
+                mode, batch, train_set_size, meter:value(), clerr:value{k = 1}))
     else
         xlua.progress(batch, 41170)
     end

@@ -46,11 +46,11 @@ function vggLSTM:separateBatch(input)
 end
 
 function vggLSTM:forward(input)
-    -- local separatedBatch = self:separateBatch(input)
-    -- local inputImage = separatedBatch.image
-    -- local inputText = separatedBatch.captions
-    local inputImage = input[1].image -- To change
-    local inputText = input[1].caption -- to change
+    local separatedBatch = self:separateBatch(input)
+    local inputImage = separatedBatch.image
+    local inputText = separatedBatch.captions
+    -- local inputImage = input[1].image -- To change
+    -- local inputText = input[1].caption -- to change
     -- image nets
     self.outputImageModel = self.imageModel:forward(inputImage)
     self.visualFeatureRescaled = self.visualRescale:forward(self.outputImageModel)
@@ -65,13 +65,16 @@ function vggLSTM:forward(input)
 end
 
 function vggLSTM:backward(input, grad)
-    local inputImage = input[1].image -- to change
-    local inputText = input[1].caption -- to change
+    local separatedBatch = self:separateBatch(input)
+    local inputImage = separatedBatch.image
+    local inputText = separatedBatch.captions
+    -- local inputImage = input[1].image -- to change
+    -- local inputText = input[1].caption -- to change
     -- backprop the language model
-    local gradLSTMInput = self.LSTM:backward(self.text_embedding, grad)
+    local lstmInGrad = self.LSTM:backward(self.text_embedding, grad)
     -- backprop the rescale visual feature layer
-    local gradVisualFeature = self.visualRescale:backward(self.outputImageModel, gradLSTMInput[1])
-
+    local gradVisualFeature = self.visualRescale:backward(self.outputImageModel, self.LSTM.gradPrevOutput)
+    self.embedding_vec:backward(inputText, lstmInGrad)
 end
 
 
