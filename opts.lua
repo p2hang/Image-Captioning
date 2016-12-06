@@ -30,6 +30,7 @@ function M.parse(arg)
     cmd:option('-numWords',         0,              'last layer of the image model')
     cmd:option('-protobuf',         "VGG_ILSVRC_19_layers_deploy.prototxt",    'protobuf to deploy the caffe model')
     cmd:option('-caffemodel',       "VGG_ILSVRC_19_layers.caffemodel",             'pretrained binary caffe model')
+    cmd:option('-numWords',         38423,           'number of words in the dataset')
     -- TODO: num words default value
 
     local opt = cmd:parse(arg or {})

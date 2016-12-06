@@ -174,12 +174,24 @@ engine.hooks.onStart = function(state)
 end
 
 engine.hooks.onForward = function(state)
-    -- state.sample.target = state.sample.target[1]
+    print(state.sample.target)
+    -- local batch_size = #state.sample.target
+
+    -- local caption_size = state.sample.target[1]:size()
+    -- local caption_tensor = torch.DoubleTensor(batch_size, caption_size[1])
+
+    -- for i = 1, batch_size do 
+    --     caption_tensor[i]:copy(state.sample.target[i])
+    -- end
+
+    -- state.sample.target = caption_tensor
+    -- print()
+    -- print("done onforward")
 end
 
 engine.hooks.onForwardCriterion = function(state)
     meter:add(state.criterion.output)
-    clerr:add(state.network.output, state.sample.target)
+    -- clerr:add(state.network.output, state.sample.target)
     if opt.verbose == true then
         print(string.format("%s Batch: %d/%d; avg. loss: %2.4f; avg. error: %2.4f",
                 mode, batch, train_set_size, meter:value(), clerr:value{k = 1}))
