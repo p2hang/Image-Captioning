@@ -65,17 +65,18 @@ function getIterator(data_type)
             end
 
 
-            function transformInput(inp)
-                local sample = {}
+            function transformInputImage(inp)
                 local f = tnt.transform.compose{
                     [1] = resize
                 }
-                local fc = tnt.transform.compose{
+                return f(inp)
+            end
+
+            function transformImputText(inp)
+                local f = tnt.transform.compose{
                     [1] = padInput
                 }
-                sample.image = f(inp.image)
-                sample.caption = fc(inp.caption)
-                return sample 
+                return f(inp)
             end
 
             function padTarget(tg)
@@ -100,14 +101,16 @@ function getIterator(data_type)
                 return f(tg)
             end
 
+            tnt.BatchDataset.get = require('util/get_in_batchdataset')
+
             return tnt.BatchDataset{
                 batchsize = opt.batchsize,
                 dataset = tnt.ListDataset{
                     list = torch.range(1, #dataset):long(),
                     load = function(idx)
-                        return{
-                            input = transformInput({['image']= ld:loadImage(data_type, dataset[idx].image_id),
-                                     ['caption'] = dataset[idx].caption}),
+                        return {
+                            image = transformInputImage(ld:loadImage(data_type, dataset[idx].image_id)),
+                            text = transformImputText(dataset[idx].caption),
                             target = transformTarget(dataset[idx].caption)
                         }
                     end,

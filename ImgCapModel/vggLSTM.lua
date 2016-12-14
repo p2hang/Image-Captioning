@@ -60,23 +60,27 @@ function vggLSTM:separateBatch(input)
 end
 
 function vggLSTM:forward(input)
-    local separatedBatch = self:separateBatch(input)
-    local inputImage = separatedBatch.image
-    local inputText = separatedBatch.caption
+--    local separatedBatch = self:separateBatch(input)
+--    local inputImage = separatedBatch.image
+--    local inputText = separatedBatch.caption
+
     -- local inputImage = input[1].image -- To change
     -- local inputText = input[1].caption -- to change
+
     -- image nets
-    self.outputImageModel = self.imageModel:forward(inputImage)
+    self.outputImageModel = self.imageModel:forward(input.image)
     self.visualFeatureRescaled = self.visualRescale:forward(self.outputImageModel)
 
     -- vggLSTM -> LSTM -> sequencer -> recursor -> LSTMcell -> nn.LSTM, init h0 with visual feature
     -- print(self.LSTM.module.module.modules[1].userPrevOutput)
+    print("\n Size of rescaled visual feature")
     print(self.visualFeatureRescaled:size())
     self.LSTM.module.module.modules[1].userPrevOutput = self.visualFeatureRescaled
 
     -- LSTM
-    self.text_embedding = self.embedding_vec:forward(inputText)
+    self.text_embedding = self.embedding_vec:forward(input.text)
     self.text_embedding_transpose = self.embed_transpose:forward(self.text_embedding)
+    print("\n Size of transposed embedding text")
     print(self.text_embedding_transpose:size())
 
     self.LSTMout = self.LSTM:forward(self.text_embedding_transpose)
@@ -87,24 +91,26 @@ function vggLSTM:forward(input)
 end
 
 function vggLSTM:backward(input, grad)
-    local separatedBatch = self:separateBatch(input)
-    local inputImage = separatedBatch.image
-    local inputText = separatedBatch.caption
+--    local separatedBatch = self:separateBatch(input)
+--    local inputImage = separatedBatch.image
+--    local inputText = separatedBatch.caption
+
     -- local inputImage = input[1].image -- to change
     -- local inputText = input[1].caption -- to change
     -- backprop the language model
-    print(grad:size())
     local gradT = self.output_transpose:backward(self.LSTMout, grad)
+
+    print("\n Size of transposed Gradient")
     print(gradT:size())
     local lstmInGrad = self.LSTM:backward(self.text_embedding_transpose, gradT)
     local lstmInGradT = self.embed_transpose:backward(self.text_embedding, lstmInGrad)
     -- backprop the rescale visual feature layer
-    print("grad prev output: ")
-    print(self.outputImageModel:size())
+
+    print("\n Size of Grad of h0")
     print(self.LSTM.module.module.modules[1].gradPrevOutput:size())
     local gradVisualFeature = self.visualRescale:backward(self.outputImageModel, self.LSTM.module.module.modules[1].gradPrevOutput)
 
-    self.embedding_vec:backward(inputText, lstmInGradT)
+    self.embedding_vec:backward(input.text, lstmInGradT)
 end
 
 
