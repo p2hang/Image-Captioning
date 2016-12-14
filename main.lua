@@ -59,9 +59,24 @@ function getIterator(data_type)
                 end
                 input[1] = 2
                 for i = 1, len do 
-                    input[i + 1] = input[i]
+                    input[i + 1] = ip[i]
                 end
                 return input
+            end
+
+            function padTarget(tg)
+                local target = torch.IntTensor(32):fill(1)
+                if tg:size()[1] < 32 then
+                    len = tg:size()[1]
+                else
+                    len = 31
+                end
+
+                for i = 1, len do
+                    target[i] = tg[i]
+                end
+                target[len + 1] = 3
+                return target
             end
 
 
@@ -77,21 +92,6 @@ function getIterator(data_type)
                     [1] = padInput
                 }
                 return f(inp)
-            end
-
-            function padTarget(tg)
-                local target = torch.IntTensor(32):fill(1)
-                if tg:size()[1] < 32 then
-                    len = tg:size()[1]
-                else
-                    len = 31
-                end
-
-                for i = 1, len do 
-                    target[i] = tg[i]
-                end
-                target[len + 1] = 3
-                return target 
             end
 
             function transformTarget(tg)
