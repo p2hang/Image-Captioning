@@ -1,6 +1,4 @@
 *.jpg
-*.txt
-*.t7
 *.json
 .DS_Store
 .idea
