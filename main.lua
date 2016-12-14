@@ -87,18 +87,16 @@ if opt.useWeights then
     model = torch.load(opt.weights .. opt.model .. '_weights.t7')
 end
 
-
-
-
+-----------------------------------------------------------------------
+---- Init variables and convert model to cuda if flag set.
+-----------------------------------------------------------------------
 local engine = tnt.OptimEngine()
 local meter = tnt.AverageValueMeter()
 local criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
 local clerr = tnt.ClassErrorMeter{topk = {3}}
 local timer = tnt.TimeMeter()
-local batch = 1 
------------------------------------------------------------------------
----- Convert to cuda if flag set.
------------------------------------------------------------------------
+local batch = 1
+
 if opt.cuda then 
     print("Using CUDA")
     require 'cunn'
