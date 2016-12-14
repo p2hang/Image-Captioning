@@ -1,7 +1,9 @@
 local argcheck = require 'argcheck'
 
 
--- Use this to override 'get' in BatchDataset.
+-----------------------------------------------------------------------
+---- To override the get function in tnt.BatchDataset
+-----------------------------------------------------------------------
 return argcheck{
     {name='self', type='tnt.BatchDataset'},
     {name='idx', type='number'},

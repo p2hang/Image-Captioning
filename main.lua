@@ -9,7 +9,6 @@ ld = require "util/load_data"
 require 'loadcaffe'
 
 local tnt = require 'torchnet'
--- local image = require 'image'
 local optParser = require 'opts'
 local opt = optParser.parse(arg)
 
@@ -30,6 +29,10 @@ require('ImgCapModel/' .. opt.model)
 
 --function getTestSample(dataset, idx)
 --end
+
+-----------------------------------------------------------------------
+---- Get the dataset interator and transformation
+-----------------------------------------------------------------------
 
 -- get iterator
 function getIterator(data_type)
@@ -62,7 +65,9 @@ function getIterator(data_type)
     }
 end
 
-
+-----------------------------------------------------------------------
+---- Config or load the model.
+-----------------------------------------------------------------------
 
 
 local config = {} -- config for model, default as vgg
@@ -91,7 +96,9 @@ local criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
 local clerr = tnt.ClassErrorMeter{topk = {3}}
 local timer = tnt.TimeMeter()
 local batch = 1 
-
+-----------------------------------------------------------------------
+---- Convert to cuda if flag set.
+-----------------------------------------------------------------------
 if opt.cuda then 
     print("Using CUDA")
     require 'cunn'
@@ -111,6 +118,10 @@ if opt.cuda then
     end
 end
 
+
+-----------------------------------------------------------------------
+---- Train with engine
+-----------------------------------------------------------------------
 
 engine.hooks.onStart = function(state)
     meter:reset()
