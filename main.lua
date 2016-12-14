@@ -15,7 +15,6 @@ local opt = optParser.parse(arg)
 
 local train_set_size = 414113
 local val_set_size = 201654
-
 local min_error = 100 -- err of the best model
 local current_error = 100 -- err of current bat
 
@@ -40,68 +39,11 @@ function getIterator(data_type)
         init = function() 
             require 'torchnet' 
             ld = require "util/load_data"
-            
             end,
         closure = function()
             local dataset = ld:loadData(data_type)
-            require 'image'
-            local WIDTH, HEIGHT = 224, 224
-            function resize(img)
-                return image.scale(img, WIDTH,HEIGHT)
-            end
-
-            function padInput(ip)
-                local input = torch.IntTensor(32):fill(1)
-                if ip:size()[1] < 32 then
-                    len = ip:size()[1]
-                else
-                    len = 31
-                end
-                input[1] = 2
-                for i = 1, len do 
-                    input[i + 1] = ip[i]
-                end
-                return input
-            end
-
-            function padTarget(tg)
-                local target = torch.IntTensor(32):fill(1)
-                if tg:size()[1] < 32 then
-                    len = tg:size()[1]
-                else
-                    len = 31
-                end
-
-                for i = 1, len do
-                    target[i] = tg[i]
-                end
-                target[len + 1] = 3
-                return target
-            end
-
-
-            function transformInputImage(inp)
-                local f = tnt.transform.compose{
-                    [1] = resize
-                }
-                return f(inp)
-            end
-
-            function transformInputText(inp)
-                local f = tnt.transform.compose{
-                    [1] = padInput
-                }
-                return f(inp)
-            end
-
-            function transformTarget(tg)
-                local f = tnt.transform.compose{
-                    [1] = padTarget
-                }
-                return f(tg)
-            end
-
-            tnt.BatchDataset.get = require('util/get_in_batchdataset')
+            local trans = require 'util/transform'
+            tnt.BatchDataset.get = require 'util/get_in_batchdataset'
 
             return tnt.BatchDataset{
                 batchsize = opt.batchsize,
@@ -109,9 +51,9 @@ function getIterator(data_type)
                     list = torch.range(1, #dataset):long(),
                     load = function(idx)
                         return {
-                            image = transformInputImage(ld:loadImage(data_type, dataset[idx].image_id)),
-                            text = transformInputText(dataset[idx].caption),
-                            target = transformTarget(dataset[idx].caption)
+                            image = trans.onInputImage(ld:loadImage(data_type, dataset[idx].image_id)),
+                            text = trans.onInputText(dataset[idx].caption),
+                            target = trans.onTarget(dataset[idx].caption)
                         }
                     end,
                 }
