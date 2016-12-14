@@ -16,6 +16,8 @@ local opt = optParser.parse(arg)
 local train_set_size = 414113
 local val_set_size = 201654
 
+local min_error = 100 -- err of the best model
+local current_error = 100 -- err of current bat
 
 ImgCap = {}
 
@@ -26,10 +28,6 @@ torch.manualSeed(opt.manualSeed)
 -- cutorch.manualSeedAll(opt.manualSeed)
 require('ImgCapModel/' .. opt.model)
 
--- data transformation
-
-
-
 
 --function getTestSample(dataset, idx)
 --end
@@ -38,7 +36,7 @@ require('ImgCapModel/' .. opt.model)
 function getIterator(data_type)
     assert(data_type == "train" or data_type == "val")
     return tnt.ParallelDatasetIterator{
-        nthread = 1,
+        nthread = opt.nThreads,
         init = function() 
             require 'torchnet' 
             ld = require "util/load_data"
@@ -46,7 +44,6 @@ function getIterator(data_type)
             end,
         closure = function()
             local dataset = ld:loadData(data_type)
-            print(data_type .. 'set size: '.. #dataset)
             require 'image'
             local WIDTH, HEIGHT = 224, 224
             function resize(img)
@@ -104,7 +101,7 @@ function getIterator(data_type)
             end
 
             return tnt.BatchDataset{
-                batchsize = 2,
+                batchsize = opt.batchsize,
                 dataset = tnt.ListDataset{
                     list = torch.range(1, #dataset):long(),
                     load = function(idx)
@@ -133,6 +130,12 @@ config.batchsize = opt.batchsize
 
 local model = ImgCap.vggLSTM(config)
 
+
+-- Init model from previous trained result.
+if opt.useWeights then
+    print("Use pretrained weights for the vggLSTM.")
+    model = torch.load(opt.weights .. opt.model .. '_weights.t7')
+end
 
 
 
@@ -211,10 +214,15 @@ end
 engine.hooks.onEnd = function(state)
     print(string.format("%s: avg. loss: %2.4f; avg. error: %2.4f, time: %2.4f",
     mode, meter:value(), clerr:value{k = 1}, timer:value()))
+
+    -- the error on end of the training
+    current_error = clerr:value { k = 1 }
 end
 
 local lr = opt.LR 
 local epoch = 1
+
+print("Start Training!")
 while epoch <= opt.nEpochs do 
     engine:train{
         network = model,
@@ -228,9 +236,22 @@ while epoch <= opt.nEpochs do
         }
     }
 
+    engine:test {
+        network = model,
+        criterion = criterion,
+        iterator = getIterator('val')
+    }
 
+    -- save the model if it is the best so far
+    if current_error <= min_error then
+        print("update model")
+        min_error = current_error
+        torch.save(opt.weights .. opt.model .. '_weights.t7', model:clearState())
+    end
+
+    print('Done with Epoch ' .. tostring(epoch))
     epoch = epoch + 1
 end
 
 
-
+print("The End!")
