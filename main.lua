@@ -87,7 +87,7 @@ function getIterator(data_type)
                 return f(inp)
             end
 
-            function transformImputText(inp)
+            function transformInputText(inp)
                 local f = tnt.transform.compose{
                     [1] = padInput
                 }
@@ -110,7 +110,7 @@ function getIterator(data_type)
                     load = function(idx)
                         return {
                             image = transformInputImage(ld:loadImage(data_type, dataset[idx].image_id)),
-                            text = transformImputText(dataset[idx].caption),
+                            text = transformInputText(dataset[idx].caption),
                             target = transformTarget(dataset[idx].caption)
                         }
                     end,
