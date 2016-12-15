@@ -105,7 +105,8 @@ if opt.cuda then
 
 
     engine.hooks.onSample = function(state)
-        print(state.sample.input.image)
+        -- print(state.sample.input.image)
+        assert(type(state.sample.input.image) == 'userdata', "incorrect data type: " .. type(state.sample.input.image))
         assert(state.sample.input.image:type() == "torch.DoubleTensor", "image type incorrect, got type: " .. state.sample.input.image:type())
         state.sample.input.image = state.sample.input.image:cuda()
         state.sample.input.text = state.sample.input.text:cuda()

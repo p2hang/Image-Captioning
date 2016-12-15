@@ -10,7 +10,7 @@ return argcheck{
         assert(idx >= 1 and idx <= self:size(), 'index out of bound')
         local samples = {}
         local maxidx = self.dataset:size()
-        for i=1,self.batchsize do
+        for i= 1,self.batchsize do
             local idx = (idx - 1)*self.batchsize + i
             if idx > maxidx then
                 break
