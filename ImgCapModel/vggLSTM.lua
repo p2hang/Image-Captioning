@@ -42,6 +42,7 @@ function vggLSTM:__init(config)
     -- language model.
    LSTMcell = nn.Sequential()
            :add(nn.LSTM(config.embeddingDim, config.embeddingDim, 60))
+           :add(nn.LSTM(config.embeddingDim, config.embeddingDim, 60))
            :add(nn.Linear(config.embeddingDim, self.num_words))
            -- :add(nn.LogSoftMax())
    self.LSTM = nn.Sequencer(LSTMcell)
@@ -105,7 +106,7 @@ function vggLSTM:backward(input, grad)
 end
 
 function vggLSTM:predict(imageInput, beam_search)
-    assert(imageInput:type == "torch.DoubleTensor", "Type error, predict image input type should be torch.DoubleTensor")
+    assert(imageInput:type() == "torch.DoubleTensor", "Type error, predict image input type should be torch.DoubleTensor")
     assert(imageInput:size()[1] == 3, "image channel error, predict image channel should be 3")
     assert(imageInput:size()[2] == 224, "Size error, predict image input size should be 224 * 224")
     assert(imageInput:size()[3] == 224, "Size error, predict image input size should be 224 * 224")
