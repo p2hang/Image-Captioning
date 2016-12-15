@@ -15,6 +15,7 @@ function vggLSTM:__init(config)
     self.embed_transpose = nn.Transpose({1,2})
     self.output_transpose = nn.Transpose({1,2})
 
+
     -- Load image model after remove the last few layers.
     -- loadcaffe [https://github.com/szagoruyko/loadcaffe]
     -- And remove the layers after last linear layer. For vgg last is 42, (4096 -> 4096)
@@ -70,12 +71,6 @@ function vggLSTM:separateBatch(input)
 end
 
 function vggLSTM:forward(input)
---    local separatedBatch = self:separateBatch(input)
---    local inputImage = separatedBatch.image
---    local inputText = separatedBatch.caption
-
-    -- local inputImage = input[1].image -- To change
-    -- local inputText = input[1].caption -- to change
 
     -- image nets
 
@@ -83,52 +78,66 @@ function vggLSTM:forward(input)
     self.visualFeatureRescaled = self.visualRescale:forward(self.outputImageModel)
 
     -- vggLSTM -> LSTM -> sequencer -> recursor -> LSTMcell -> nn.LSTM, init h0 with visual feature
-    -- print(self.LSTM.module.module.modules[1].userPrevOutput)
-    -- print("\n Size of rescaled visual feature")
-    -- print(self.visualFeatureRescaled:size())
     self.LSTM.module.module.modules[1].userPrevOutput = self.visualFeatureRescaled
 
     -- LSTM
     self.text_embedding = self.embedding_vec:forward(input.text)
     self.text_embedding_transpose = self.embed_transpose:forward(self.text_embedding)
-    -- print("\n Size of transposed embedding text")
-    -- print(self.text_embedding_transpose:size())
 
     self.LSTMout = self.LSTM:forward(self.text_embedding_transpose)
     self.output = self.output_transpose:forward(self.LSTMout)
-    -- print("\n output size")
-    -- print(self.output:size())
-
-    -- print(self.output:size())
     collectgarbage()
     return self.output
 end
 
 function vggLSTM:backward(input, grad)
---    local separatedBatch = self:separateBatch(input)
---    local inputImage = separatedBatch.image
---    local inputText = separatedBatch.caption
 
-    -- local inputImage = input[1].image -- to change
-    -- local inputText = input[1].caption -- to change
-    -- backprop the language model
     local gradT = self.output_transpose:backward(self.LSTMout, grad)
 
-    -- print("\n Size of transposed Gradient")
-    -- print(gradT:size())
+
     local lstmInGrad = self.LSTM:backward(self.text_embedding_transpose, gradT)
     local lstmInGradT = self.embed_transpose:backward(self.text_embedding, lstmInGrad)
     -- backprop the rescale visual feature layer
-
-    -- print("\n Size of Grad of h0")
-    -- print(self.LSTM.module.module.modules[1].gradPrevOutput:size())
     local gradVisualFeature = self.visualRescale:backward(self.outputImageModel, self.LSTM.module.module.modules[1].gradPrevOutput)
 
     self.embedding_vec:backward(input.text, lstmInGradT)
     collectgarbage()
 end
 
+function vggLSTM:predict(imageInput, beam_search)
+    assert(imageInput:type == "torch.DoubleTensor", "Type error, predict image input type should be torch.DoubleTensor")
+    assert(imageInput:size()[1] == 3, "image channel error, predict image channel should be 3")
+    assert(imageInput:size()[2] == 224, "Size error, predict image input size should be 224 * 224")
+    assert(imageInput:size()[3] == 224, "Size error, predict image input size should be 224 * 224")
 
+    local outputImageModel = self.imageModel:forward(imageInput)
+    local visualFeatureRescaled = self.visualRescale:forward(outputImageModel)
+    self.LSTM.module.module.modules[1].userPrevOutput = self.visualFeatureRescaled
+    --Go id is 2, Eos id is 3
+    local result = {}
+    if not beam_search then 
+        local lastWordIdx = 2
+        while(lastWordIdx ~= 3) do 
+            local textTensor = torch.IntTensor({lastWordIdx})
+            local textInput = self.embedding_vec:forward(textTensor)
+            local LSTMout = self.LSTM:forward(textInput)
+            val, idx = torch.max(LSTMout)
+            table.insert(result,idx)
+            lastWordIdx = idx 
+        end
+    end
+
+    return convertWordIdxToSentence(result)
+end 
+
+function vggLSTM:convertWordIdxToSentence(tokenIndices)
+    local sentence = {}
+    for i = 1, #tokenIndices do 
+        local word = self.ivocab[tokenIndices[i]]
+        table.insert(sentence, word)
+    end
+    return table.concat(sentence, " ")
+end
 
 
 function vggLSTM:parameters()

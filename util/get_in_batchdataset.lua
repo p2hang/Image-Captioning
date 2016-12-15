@@ -47,7 +47,7 @@ local getForTest =  argcheck{
 
         -- only return two samples.
         for i= 1,self.batchsize do
-            local idx = (idx - 1)*self.batchsize + i + 70 * 32
+            local idx = (idx - 1)*self.batchsize
             if idx > maxidx then
                 break
             end
