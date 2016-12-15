@@ -95,6 +95,8 @@ local criterion = nn.SequencerCriterion(nn.CrossEntropyCriterion())
 local clerr = tnt.ClassErrorMeter{topk = {3}}
 local timer = tnt.TimeMeter()
 local batch = 1
+local lastFinishTime = -1
+local startTime = -1
 
 if opt.cuda then 
     print("Using CUDA")
@@ -129,6 +131,8 @@ engine.hooks.onStart = function(state)
     clerr:reset()
     timer:reset()
     batch = 1
+    lastFinishTime = -1
+    startTime = timer:time().real
     if state.training then
         mode = 'Train'
         num_iters = math.floor(train_set_size / opt.batchsize)
@@ -143,13 +147,26 @@ end
 
 engine.hooks.onForwardCriterion = function(state)
     meter:add(state.criterion.output)
-    -- clerr:add(state.network.output, state.sample.target)
+
+    -- train timer and ETA
+    local function timePerBatchAndETA()
+        if lastFinishTime == -1 then
+            lastFinishTime = startTime
+        end
+        local current = timer:time().real
+        local timeElapsed = current - lastFinishTime
+
+        local remainStep = num_iters - batch
+        local step = (current - startTime) / batch
+        local remainTimeTotal = remainStep * step
+
+        return xlua.formatTime(timeElapsed), xlua.formatTime(remainTimeTotal)
+    end
+
     if opt.verbose == true then
-        -- print(string.format("%s Batch: %d/%d; avg. loss: %2.4f; avg. error: %2.4f",
-        --         mode, batch, num_iters, meter:value(), clerr:value{k = 1}))
-        print(string.format("%s Batch: %d/%d; avg. loss: %2.4f", mode, batch, num_iters, meter:value()))
-    else
-        xlua.progress(batch, num_iters)
+        local timeElapsed, ETA = timePerBatchAndETA()
+        print(string.format("%s Batch: %d/%d; avg. loss: %2.4f, time: %s, ETA: %s",
+            mode, batch, num_iters, meter:value(), timeElapsed, ETA))
     end
     batch = batch + 1 -- batch increment has to happen here to work for train, val and test.
     timer:incUnit()
