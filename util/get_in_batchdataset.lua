@@ -36,7 +36,7 @@ local getForVggLSTM =  argcheck{
 -----------------------------------------------------------------------
 ---- Only return the first two samples to see if able to overfit the model
 -----------------------------------------------------------------------
-local getFirstTwoSample =  argcheck{
+local getForTest =  argcheck{
     {name='self', type='tnt.BatchDataset'},
     {name='idx', type='number'},
     call =
@@ -46,8 +46,8 @@ local getFirstTwoSample =  argcheck{
         local maxidx = self.dataset:size()
 
         -- only return two samples.
-        for i=1,2 do
-            local idx = i
+        for i= 1,self.batchsize do
+            local idx = (idx - 1)*self.batchsize + i + 70 * 32
             if idx > maxidx then
                 break
             end
@@ -59,8 +59,11 @@ local getFirstTwoSample =  argcheck{
             end
         end
 
+
         -- transform to vgg lstm use
         samples = self.makebatch(samples)
+        assert(type(samples.image)=='userdata', "wrong data type: " .. type(samples.image))
+        print(samples.image:size())
         local batchSample = {input = {image = samples.image, text = samples.text}, target = samples.target}
         collectgarbage()
         return batchSample

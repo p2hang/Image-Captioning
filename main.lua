@@ -54,7 +54,7 @@ function getIterator(data_type)
                 dataset = tnt.ListDataset{
                     list = torch.range(1, #dataset):long(),
                     load = function(idx)
-                        print(dataset[idx].image_id)
+                        -- print(dataset[idx].image_id)
                         return {
                             image = trans.onInputImage(ld:loadImage(data_type, dataset[idx].image_id)),
                             text = trans.onInputText(dataset[idx].caption),

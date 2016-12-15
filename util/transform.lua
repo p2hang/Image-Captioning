@@ -14,6 +14,18 @@ function resize(img)
     return image.scale(img, WIDTH,HEIGHT):type('torch.DoubleTensor')
 end
 
+function greyToRGBIfNot(img)
+    if(img:size()[1] ~= 3) then
+        tmp = torch.DoubleTensor():resize(3, img:size()[2], img:size()[3])
+        tmp[1]:copy(img[1])
+        tmp[2]:copy(img[1])
+        tmp[3]:copy(img[1])
+        return tmp
+    else
+        return img
+    end
+end
+
 function padInput(ip)
     local input = torch.IntTensor(32):fill(1)
     if ip:size()[1] < 32 then
@@ -48,7 +60,8 @@ end
 
 function T.onInputImage(inp)
     local f = tnt.transform.compose{
-        [1] = resize
+        [1] = resize,
+        [2] = greyToRGBIfNot 
     }
     return f(inp)
 end
