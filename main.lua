@@ -9,7 +9,6 @@ ld = require "util/load_data"
 -- require 'loadcaffe'
 
 local tnt = require 'torchnet'
--- local image = require 'image'
 local optParser = require 'opts'
 local opt = optParser.parse(arg)
 -- torch.setdefaulttensortype('torch.FloatTensor')
@@ -31,6 +30,10 @@ require('ImgCapModel/' .. opt.model)
 
 --function getTestSample(dataset, idx)
 --end
+
+-----------------------------------------------------------------------
+---- Get the dataset interator and transformation
+-----------------------------------------------------------------------
 
 -- get iterator
 function getIterator(data_type)
@@ -64,7 +67,9 @@ function getIterator(data_type)
     }
 end
 
-
+-----------------------------------------------------------------------
+---- Config or load the model.
+-----------------------------------------------------------------------
 
 
 local config = {} -- config for model, default as vgg
@@ -84,15 +89,15 @@ if opt.useWeights then
     model = torch.load(opt.weights .. opt.model .. '_weights.t7')
 end
 
-
-
-
+-----------------------------------------------------------------------
+---- Init variables and convert model to cuda if flag set.
+-----------------------------------------------------------------------
 local engine = tnt.OptimEngine()
 local meter = tnt.AverageValueMeter()
 local criterion = nn.SequencerCriterion(nn.CrossEntropyCriterion())
 local clerr = tnt.ClassErrorMeter{topk = {3}}
 local timer = tnt.TimeMeter()
-local batch = 1 
+local batch = 1
 
 if opt.cuda then 
     print("Using CUDA")
@@ -127,6 +132,10 @@ if opt.cuda then
     -- end
 end
 
+
+-----------------------------------------------------------------------
+---- Train with engine
+-----------------------------------------------------------------------
 
 engine.hooks.onStart = function(state)
     meter:reset()

@@ -5,7 +5,9 @@ local tnt = require 'torchnet'
 local WIDTH, HEIGHT = 224, 224
 local T = {}
 
--- Transforms on the input and target.
+-----------------------------------------------------------------------
+---- Transform on the input and taget.
+-----------------------------------------------------------------------
 
 function resize(img)
     assert(img, "img is nil")
@@ -40,6 +42,8 @@ function padTarget(tg)
     target[len + 1] = 3
     return target
 end
+
+
 
 
 function T.onInputImage(inp)
