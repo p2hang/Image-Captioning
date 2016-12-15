@@ -8,7 +8,8 @@ local T = {}
 -- Transforms on the input and target.
 
 function resize(img)
-    return image.scale(img, WIDTH,HEIGHT)
+    assert(img, "img is nil")
+    return image.scale(img, WIDTH,HEIGHT):type('torch.DoubleTensor')
 end
 
 function padInput(ip)

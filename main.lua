@@ -6,12 +6,13 @@ require 'math'
 ld = require "util/load_data"
 -- require 'cunn'
 -- require 'cudnn'
-require 'loadcaffe'
+-- require 'loadcaffe'
 
 local tnt = require 'torchnet'
 -- local image = require 'image'
 local optParser = require 'opts'
 local opt = optParser.parse(arg)
+-- torch.setdefaulttensortype('torch.FloatTensor')
 
 local train_set_size = 414113
 local val_set_size = 201654
@@ -50,6 +51,7 @@ function getIterator(data_type)
                 dataset = tnt.ListDataset{
                     list = torch.range(1, #dataset):long(),
                     load = function(idx)
+                        print(dataset[idx].image_id)
                         return {
                             image = trans.onInputImage(ld:loadImage(data_type, dataset[idx].image_id)),
                             text = trans.onInputText(dataset[idx].caption),
@@ -87,7 +89,7 @@ end
 
 local engine = tnt.OptimEngine()
 local meter = tnt.AverageValueMeter()
-local criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
+local criterion = nn.SequencerCriterion(nn.CrossEntropyCriterion())
 local clerr = tnt.ClassErrorMeter{topk = {3}}
 local timer = tnt.TimeMeter()
 local batch = 1 
@@ -95,20 +97,33 @@ local batch = 1
 if opt.cuda then 
     print("Using CUDA")
     require 'cunn'
-    require 'cudnn'
+    -- require 'cudnn'
     require 'cutorch'
     cutorch.setDevice(opt.gpuid)
     model:cuda()
     criterion:cuda()
-    local igpu, tgpu = torch.CudaTensor(), torch.CudaTensor()
-        engine.hooks.onSample = function(state)
-        igpu:resize(state.sample.input:size()):copy(state.sample.input)
-        state.sample.input = igpu
+
+
+    engine.hooks.onSample = function(state)
+        print(state.sample.input.image)
+        assert(state.sample.input.image:type() == "torch.DoubleTensor", "image type incorrect, got type: " .. state.sample.input.image:type())
+        state.sample.input.image = state.sample.input.image:cuda()
+        state.sample.input.text = state.sample.input.text:cuda()
         if state.sample.target then
-            tgpu:resize(state.sample.target:size()):copy(state.sample.target)
-            state.sample.target = tgpu
+            state.sample.target = state.sample.target:cuda()
         end
     end
+
+
+    -- local igpu, tgpu = torch.CudaTensor(), torch.CudaTensor()
+    --     engine.hooks.onSample = function(state)
+    --     igpu:resize(state.sample.input:size()):copy(state.sample.input)
+    --     state.sample.input = igpu
+    --     if state.sample.target then
+    --         tgpu:resize(state.sample.target:size()):copy(state.sample.target)
+    --         state.sample.target = tgpu
+    --     end
+    -- end
 end
 
 
@@ -127,7 +142,7 @@ engine.hooks.onStart = function(state)
 end
 
 engine.hooks.onForward = function(state)
-    print(state.sample.target)
+    -- print(state.sample.target)
     -- local batch_size = #state.sample.target
 
     -- local caption_size = state.sample.target[1]:size()
@@ -144,10 +159,11 @@ end
 
 engine.hooks.onForwardCriterion = function(state)
     meter:add(state.criterion.output)
-    --clerr:add(state.network.output, state.sample.target)
+    -- clerr:add(state.network.output, state.sample.target)
     if opt.verbose == true then
-        print(string.format("%s Batch: %d/%d; avg. loss: %2.4f; avg. error: %2.4f",
-                mode, batch, num_iters, meter:value(), clerr:value{k = 1}))
+        -- print(string.format("%s Batch: %d/%d; avg. loss: %2.4f; avg. error: %2.4f",
+        --         mode, batch, num_iters, meter:value(), clerr:value{k = 1}))
+        print(string.format("%s Batch: %d/%d; avg. loss: %2.4f", mode, batch, num_iters, meter:value()))
     else
         xlua.progress(batch, num_iters)
     end
@@ -157,11 +173,13 @@ end
 
 
 engine.hooks.onEnd = function(state)
-    print(string.format("%s: avg. loss: %2.4f; avg. error: %2.4f, time: %2.4f",
-    mode, meter:value(), clerr:value{k = 1}, timer:value()))
-
+    print(string.format("%s: avg. loss: %2.4f; time: %2.4f",
+    mode, meter:value(),  timer:value()))
+    -- print(string.format("%s: avg. loss: %2.4f; avg. error: %2.4f, time: %2.4f",
+    -- mode, meter:value(), clerr:value{k = 1}, timer:value()))
+    collectgarbage()
     -- the error on end of the training
-    current_error = clerr:value { k = 1 }
+    -- current_error = clerr:value { k = 1 }
 end
 
 local lr = opt.LR 

@@ -1,7 +1,8 @@
 require('nn')
 require('nngraph')
 require('rnn')
-require 'loadcaffe'
+-- require 'loadcaffe'
+require('paths')
 -- require "util/load_data"
 local vggLSTM, parent = torch.class('ImgCap.vggLSTM', 'nn.Module')
 
@@ -17,13 +18,21 @@ function vggLSTM:__init(config)
     -- Load image model after remove the last few layers.
     -- loadcaffe [https://github.com/szagoruyko/loadcaffe]
     -- And remove the layers after last linear layer. For vgg last is 42, (4096 -> 4096)
-    local imageModel = loadcaffe.load(config.imageModelPrototxt, config.imageModelBinary)
-    for i = #imageModel.modules, config.imageOutputLayer + 1, -1 do
-        imageModel:remove(i)
+    local imageModel
+    if not paths.filep("models/vgg.t7") then
+        require 'loadcaffe'
+        imageModel = loadcaffe.load(config.imageModelPrototxt, config.imageModelBinary)
+        for i = #imageModel.modules, config.imageOutputLayer + 1, -1 do
+            imageModel:remove(i)
+        end
+        imageModel:clearState()
+        -- torch.save("models/vgg.t7", imageModel)
+    else
+        imageModel = torch.load("models/vgg.t7")
     end
 
     self.imageModel = imageModel
-
+    -- print(self.imageModel)
 
     -- visual rescale layer
     local imageOutputSize = (#self.imageModel.modules[config.imageOutputLayer].weight)[1]
@@ -33,11 +42,12 @@ function vggLSTM:__init(config)
    LSTMcell = nn.Sequential()
            :add(nn.LSTM(config.embeddingDim, config.embeddingDim, 60))
            :add(nn.Linear(config.embeddingDim, self.num_words))
-           :add(nn.SoftMax())
+           -- :add(nn.LogSoftMax())
    self.LSTM = nn.Sequencer(LSTMcell)
 
     -- self.LSTM = nn.SeqLSTMP(config.embeddingDim, config.embeddingDim, self.num_words)
     -- self.LSTM.batchfirst = true
+    collectgarbage()
 
 end
 
@@ -68,25 +78,29 @@ function vggLSTM:forward(input)
     -- local inputText = input[1].caption -- to change
 
     -- image nets
+
     self.outputImageModel = self.imageModel:forward(input.image)
     self.visualFeatureRescaled = self.visualRescale:forward(self.outputImageModel)
 
     -- vggLSTM -> LSTM -> sequencer -> recursor -> LSTMcell -> nn.LSTM, init h0 with visual feature
     -- print(self.LSTM.module.module.modules[1].userPrevOutput)
-    print("\n Size of rescaled visual feature")
-    print(self.visualFeatureRescaled:size())
+    -- print("\n Size of rescaled visual feature")
+    -- print(self.visualFeatureRescaled:size())
     self.LSTM.module.module.modules[1].userPrevOutput = self.visualFeatureRescaled
 
     -- LSTM
     self.text_embedding = self.embedding_vec:forward(input.text)
     self.text_embedding_transpose = self.embed_transpose:forward(self.text_embedding)
-    print("\n Size of transposed embedding text")
-    print(self.text_embedding_transpose:size())
+    -- print("\n Size of transposed embedding text")
+    -- print(self.text_embedding_transpose:size())
 
     self.LSTMout = self.LSTM:forward(self.text_embedding_transpose)
     self.output = self.output_transpose:forward(self.LSTMout)
+    -- print("\n output size")
+    -- print(self.output:size())
 
     -- print(self.output:size())
+    collectgarbage()
     return self.output
 end
 
@@ -100,17 +114,18 @@ function vggLSTM:backward(input, grad)
     -- backprop the language model
     local gradT = self.output_transpose:backward(self.LSTMout, grad)
 
-    print("\n Size of transposed Gradient")
-    print(gradT:size())
+    -- print("\n Size of transposed Gradient")
+    -- print(gradT:size())
     local lstmInGrad = self.LSTM:backward(self.text_embedding_transpose, gradT)
     local lstmInGradT = self.embed_transpose:backward(self.text_embedding, lstmInGrad)
     -- backprop the rescale visual feature layer
 
-    print("\n Size of Grad of h0")
-    print(self.LSTM.module.module.modules[1].gradPrevOutput:size())
+    -- print("\n Size of Grad of h0")
+    -- print(self.LSTM.module.module.modules[1].gradPrevOutput:size())
     local gradVisualFeature = self.visualRescale:backward(self.outputImageModel, self.LSTM.module.module.modules[1].gradPrevOutput)
 
     self.embedding_vec:backward(input.text, lstmInGradT)
+    collectgarbage()
 end
 
 
@@ -122,6 +137,18 @@ function vggLSTM:parameters()
            :add(self.imageModel)
            :add(self.LSTM)
     return modules:parameters()
+end
+
+function vggLSTM:cuda()
+    self.embedding_vec:cuda()
+
+    self.embed_transpose:cuda()
+    self.output_transpose:cuda()
+
+    self.imageModel:cuda()
+    self.visualRescale:cuda()
+
+   self.LSTM:cuda()
 end
 
 return vggLSTM
