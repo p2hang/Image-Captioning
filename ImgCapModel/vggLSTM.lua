@@ -42,6 +42,7 @@ function vggLSTM:__init(config)
     -- language model.
    LSTMcell = nn.Sequential()
            :add(nn.LSTM(config.embeddingDim, config.embeddingDim, 60))
+           :add(nn.LSTM(config.embeddingDim, config.embeddingDim, 60))
            :add(nn.Linear(config.embeddingDim, self.num_words))
            -- :add(nn.LogSoftMax())
    self.LSTM = nn.Sequencer(LSTMcell)

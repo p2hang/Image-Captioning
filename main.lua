@@ -94,6 +94,7 @@ local meter = tnt.AverageValueMeter()
 local criterion = nn.SequencerCriterion(nn.CrossEntropyCriterion())
 local clerr = tnt.ClassErrorMeter{topk = {3}}
 local timer = tnt.TimeMeter()
+local torchTimer = torch.Timer()
 local batch = 1
 local lastFinishTime = -1
 local startTime = -1
@@ -132,7 +133,7 @@ engine.hooks.onStart = function(state)
     timer:reset()
     batch = 1
     lastFinishTime = -1
-    startTime = timer:time().real
+    startTime = torchTimer:time().real
     if state.training then
         mode = 'Train'
         num_iters = math.floor(train_set_size / opt.batchsize)
@@ -153,7 +154,7 @@ engine.hooks.onForwardCriterion = function(state)
         if lastFinishTime == -1 then
             lastFinishTime = startTime
         end
-        local current = timer:time().real
+        local current = torchTimer:time().real
         local timeElapsed = current - lastFinishTime
 
         local remainStep = num_iters - batch
