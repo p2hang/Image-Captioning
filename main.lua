@@ -15,8 +15,8 @@ local opt = optParser.parse(arg)
 
 local train_set_size = 414113
 local val_set_size = 201654
-local min_error = 100 -- err of the best model
-local current_error = 100 -- err of current bat
+local min_loss = 100 -- err of the best model
+local current_loss = 100 -- err of current bat
 
 ImgCap = {}
 
@@ -24,12 +24,7 @@ ImgCap = {}
 torch.setdefaulttensortype('torch.DoubleTensor')
 
 torch.manualSeed(opt.manualSeed)
--- cutorch.manualSeedAll(opt.manualSeed)
 require('ImgCapModel/' .. opt.model)
-
-
---function getTestSample(dataset, idx)
---end
 
 -----------------------------------------------------------------------
 ---- Get the dataset interator and transformation
@@ -80,13 +75,15 @@ config.imageModelBinary = 'models/caffe/' .. opt.caffemodel or 'VGG_ILSVRC_19_la
 config.num_words = opt.numWords
 config.batchsize = opt.batchsize
 
-local model = ImgCap.vggLSTM(config)
 
+local model
 
 -- Init model from previous trained result.
 if opt.useWeights then
     print("Use pretrained weights for the vggLSTM.")
-    model = torch.load(opt.weights .. opt.model .. '_weights.t7')
+    model = torch.load(opt.weightsDir .. opt.model .. '_weights.t7')
+else
+    model = ImgCap.vggLSTM(config)
 end
 
 -----------------------------------------------------------------------
@@ -120,16 +117,6 @@ if opt.cuda then
         end
     end
 
-
-    -- local igpu, tgpu = torch.CudaTensor(), torch.CudaTensor()
-    --     engine.hooks.onSample = function(state)
-    --     igpu:resize(state.sample.input:size()):copy(state.sample.input)
-    --     state.sample.input = igpu
-    --     if state.sample.target then
-    --         tgpu:resize(state.sample.target:size()):copy(state.sample.target)
-    --         state.sample.target = tgpu
-    --     end
-    -- end
 end
 
 
@@ -151,21 +138,8 @@ engine.hooks.onStart = function(state)
     end
 end
 
-engine.hooks.onForward = function(state)
-    -- print(state.sample.target)
-    -- local batch_size = #state.sample.target
-
-    -- local caption_size = state.sample.target[1]:size()
-    -- local caption_tensor = torch.DoubleTensor(batch_size, caption_size[1])
-
-    -- for i = 1, batch_size do 
-    --     caption_tensor[i]:copy(state.sample.target[i])
-    -- end
-
-    -- state.sample.target = caption_tensor
-    -- print()
-    -- print("done onforward")
-end
+--engine.hooks.onForward = function(state)
+--end
 
 engine.hooks.onForwardCriterion = function(state)
     meter:add(state.criterion.output)
@@ -189,7 +163,7 @@ engine.hooks.onEnd = function(state)
     -- mode, meter:value(), clerr:value{k = 1}, timer:value()))
     collectgarbage()
     -- the error on end of the training
-    -- current_error = clerr:value { k = 1 }
+     current_loss = meter:value()
 end
 
 local lr = opt.LR 
@@ -216,15 +190,19 @@ while epoch <= opt.nEpochs do
     }
 
     -- save the model if it is the best so far
-    if current_error <= min_error then
+    if current_loss <= min_loss then
         print("update model")
-        min_error = current_error
-        torch.save(opt.weights .. opt.model .. '_weights.t7', model:clearState())
+        min_loss = current_loss
+        torch.save(opt.weightsDir .. opt.model .. '_weights.t7', model:clearState())
     end
 
     print('Done with Epoch ' .. tostring(epoch))
     epoch = epoch + 1
 end
+
+
+
+
 
 
 print("The End!")
