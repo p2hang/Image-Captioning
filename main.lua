@@ -20,6 +20,10 @@ local current_loss = 100 -- err of current bat
 
 ImgCap = {}
 
+logger = optim.Logger('logs/loss.log')
+logger:setNames{'Training Loss', 'Validation Loss'}
+local trainLoss
+local valLoss
 
 torch.setdefaulttensortype('torch.DoubleTensor')
 
@@ -79,11 +83,16 @@ config.batchsize = opt.batchsize
 local model
 
 -- Init model from previous trained result.
-if opt.useWeights then
-    print("Use pretrained weights for the vggLSTM.")
-    model = torch.load(opt.weightsDir .. opt.model .. '_weights.t7')
-else
-    model = ImgCap.vggLSTM(config)
+if opt.cuda then
+    require 'cunn'
+    -- require 'cudnn'
+    require 'cutorch'
+    if opt.useWeights then
+        print("Use pretrained weights for the vggLSTM.")
+        model = torch.load(opt.weightsDir .. opt.model .. '_weights.t7')
+    else
+        model = ImgCap.vggLSTM(config)
+    end
 end
 
 -----------------------------------------------------------------------
@@ -200,12 +209,15 @@ while epoch <= opt.nEpochs do
             momentum = opt.momentum
         }
     }
-
+    trainLoss = meter:value()
     engine:test {
         network = model,
         criterion = criterion,
         iterator = getIterator('val')
     }
+    valLoss = meter:value()
+
+    logger:add{trainLoss, valLoss}
 
     -- save the model if it is the best so far
     if current_loss <= min_loss then

@@ -63,7 +63,7 @@ local getForTest =  argcheck{
         -- transform to vgg lstm use
         samples = self.makebatch(samples)
         assert(type(samples.image)=='userdata', "wrong data type: " .. type(samples.image))
-        print(samples.image:size())
+        -- print(samples.image:size())
         local batchSample = {input = {image = samples.image, text = samples.text}, target = samples.target}
         collectgarbage()
         return batchSample
