@@ -83,16 +83,16 @@ config.batchsize = opt.batchsize
 local model
 
 -- Init model from previous trained result.
-if opt.cuda then
+if opt.cuda and  opt.useWeights then
     require 'cunn'
-    -- require 'cudnn'
+    require 'cudnn'
     require 'cutorch'
-    if opt.useWeights then
-        print("Use pretrained weights for the vggLSTM.")
-        model = torch.load(opt.weightsDir .. opt.model .. '_weights.t7')
-    else
-        model = ImgCap.vggLSTM(config)
-    end
+    print("Use pretrained weights for the vggLSTM.")
+    model = torch.load(opt.weightsDir .. opt.model .. '_weights.t7')
+    -- model:float()
+    -- cudnn.convert(model, cudnn)
+else 
+    model = ImgCap.vggLSTM(config)
 end
 
 -----------------------------------------------------------------------
@@ -111,12 +111,31 @@ local startTime = -1
 if opt.cuda then 
     print("Using CUDA")
     require 'cunn'
-    -- require 'cudnn'
+    require 'cudnn'
     require 'cutorch'
+    cudnn.benchmark = true
+    cudnn.fastest = true
     cutorch.setDevice(opt.gpuid)
+    cudnn.convert(model, cudnn)
+
+    -- if opt.nGPU > 1 then
+    --     print("Using " .. opt.nGPU .. ' GPUs.')
+    --     local singlemodel = model:float()
+    --     print('copy single model')
+    --     collectgarbage()
+    --     model = nn.DataParallelTable(1, true, false)
+    --         for i = 1, opt.nGPU do
+    --             print(i)
+    --             cutorch.setDevice(i)
+    --             model:add(singlemodel:clone():cuda(), i)
+    --             print(i .. ' end')
+    --         end
+    --     cutorch.setDevice(1)
+    -- else 
+    --     model:cuda()
+    -- end
     model:cuda()
     criterion:cuda()
-
 
     engine.hooks.onSample = function(state)
         -- print(state.sample.input.image)
@@ -185,7 +204,7 @@ end
 
 engine.hooks.onEnd = function(state)
     print(string.format("%s: avg. loss: %2.4f; time: %2.4f",
-    mode, meter:value(),  timer:value()))
+    mode, meter:value()/opt.batchsize,  timer:value()))
     -- print(string.format("%s: avg. loss: %2.4f; avg. error: %2.4f, time: %2.4f",
     -- mode, meter:value(), clerr:value{k = 1}, timer:value()))
     collectgarbage()
@@ -210,12 +229,14 @@ while epoch <= opt.nEpochs do
             wd = opt.weightDecay
         }
     }
+    cutorch.synchronize()
     trainLoss = meter:value()/opt.batchsize
     engine:test {
         network = model,
         criterion = criterion,
         iterator = getIterator('val')
     }
+    cutorch.synchronize()
     valLoss = meter:value()/opt.batchsize
 
     logger:add{trainLoss, valLoss}
@@ -224,7 +245,9 @@ while epoch <= opt.nEpochs do
     if current_loss <= min_loss then
         print("update model")
         min_loss = current_loss
-        torch.save(opt.weightsDir .. opt.model .. '_weights.t7', model:clearState())
+        cudnn.convert(model, nn)
+        torch.save(opt.weightsDir .. opt.model .. '_weights.t7', model:clearState():float())
+        cudnn.convert(model, cudnn)
     end
 
     print('Done with Epoch ' .. tostring(epoch))
