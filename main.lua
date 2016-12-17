@@ -176,7 +176,7 @@ engine.hooks.onForwardCriterion = function(state)
     if opt.verbose == true then
         local timeElapsed, ETA = timePerBatchAndETA()
         print(string.format("%s Batch: %d/%d; avg. loss: %2.4f, time: %s, ETA: %s",
-            mode, batch, num_iters, meter:value(), timeElapsed, ETA))
+            mode, batch, num_iters, meter:value()/opt.batchsize, timeElapsed, ETA))
     end
     batch = batch + 1 -- batch increment has to happen here to work for train, val and test.
     timer:incUnit()
@@ -190,7 +190,7 @@ engine.hooks.onEnd = function(state)
     -- mode, meter:value(), clerr:value{k = 1}, timer:value()))
     collectgarbage()
     -- the error on end of the training
-     current_loss = meter:value()
+     current_loss = meter:value()/opt.batchsize
 end
 
 local lr = opt.LR 
@@ -202,20 +202,21 @@ while epoch <= opt.nEpochs do
         network = model,
         criterion = criterion,
         iterator = getIterator('train'),
-        optimMethod = optim.sgd,
+        optimMethod = optim.adam,
         maxepoch = 1,
         config = {
             learningRate = lr,
-            momentum = opt.momentum
+            momentum = opt.momentum,
+            wd = opt.weightDecay
         }
     }
-    trainLoss = meter:value()
+    trainLoss = meter:value()/opt.batchsize
     engine:test {
         network = model,
         criterion = criterion,
         iterator = getIterator('val')
     }
-    valLoss = meter:value()
+    valLoss = meter:value()/opt.batchsize
 
     logger:add{trainLoss, valLoss}
 
