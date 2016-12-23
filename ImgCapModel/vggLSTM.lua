@@ -105,8 +105,8 @@ function vggLSTM:backward(input, grad)
     collectgarbage()
 end
 
-function vggLSTM:predict(imageInput, beam_search)
-    assert(imageInput:type() == "torch.DoubleTensor", "Type error, predict image input type should be torch.DoubleTensor")
+function vggLSTM:predict(imageInput, beam_search, cuda)
+    -- assert(imageInput:type() == "torch.DoubleTensor", "Type error, predict image input type should be torch.DoubleTensor")
     assert(imageInput:size()[1] == 3, "image channel error, predict image channel should be 3")
     assert(imageInput:size()[2] == 224, "Size error, predict image input size should be 224 * 224")
     assert(imageInput:size()[3] == 224, "Size error, predict image input size should be 224 * 224")
@@ -116,19 +116,31 @@ function vggLSTM:predict(imageInput, beam_search)
     self.LSTM.module.module.modules[1].userPrevOutput = self.visualFeatureRescaled
     --Go id is 2, Eos id is 3
     local result = {}
+    local textTensor
+    local count = 0
     if not beam_search then 
         local lastWordIdx = 2
-        while(lastWordIdx ~= 3) do 
-            local textTensor = torch.IntTensor({lastWordIdx})
-            local textInput = self.embedding_vec:forward(textTensor)
-            local LSTMout = self.LSTM:forward(textInput)
-            val, idx = torch.max(LSTMout)
-            table.insert(result,idx)
-            lastWordIdx = idx 
+        textTensor = torch.IntTensor({lastWordIdx})
+        if cuda then 
+            textTensor = textTensor:cuda()
+        end 
+        while(lastWordIdx ~= 3) and count < 40 do 
+            
+            -- print(textTensor:type())
+            -- print(textTensor)
+            -- local textInput = self.embedding_vec:forward(textTensor)
+            
+            local LSTMout = self.LSTM:forward(LSTMout)
+            val, idx = torch.max(LSTMout:float(),2)
+            lastWordIdx = torch.totable(idx)[1][1] 
+            print(lastWordIdx .. ' ' .. self.ivocab[lastWordIdx])
+            table.insert(result,lastWordIdx)
+            -- print(lastWordIdx)
+            count = count + 1
         end
     end
 
-    return convertWordIdxToSentence(result)
+    return self:convertWordIdxToSentence(result)
 end 
 
 function vggLSTM:convertWordIdxToSentence(tokenIndices)

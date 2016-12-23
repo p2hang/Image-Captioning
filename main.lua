@@ -20,10 +20,7 @@ local current_loss = 100 -- err of current bat
 
 ImgCap = {}
 
-logger = optim.Logger('logs/loss.log')
-logger:setNames{'Training Loss', 'Validation Loss'}
-local trainLoss
-local valLoss
+
 
 torch.setdefaulttensortype('torch.DoubleTensor')
 
@@ -51,7 +48,7 @@ function getIterator(data_type)
             return tnt.BatchDataset{
                 batchsize = opt.batchsize,
                 dataset = tnt.ListDataset{
-                    list = torch.range(1, #dataset):long(),
+                    list = torch.range(1, #dataset / 5):long(),
                     load = function(idx)
                         -- print(dataset[idx].image_id)
                         return {
@@ -201,6 +198,10 @@ engine.hooks.onForwardCriterion = function(state)
     timer:incUnit()
 end
 
+engine.hooks.onBackword = function(state)
+    state.gradParams = torch.clamp(state.gradParams, -1, 1)
+end 
+
 
 engine.hooks.onEnd = function(state)
     print(string.format("%s: avg. loss: %2.4f; time: %2.4f",
@@ -215,43 +216,69 @@ end
 local lr = opt.LR 
 local epoch = 1
 
-print("Start Training!")
-while epoch <= opt.nEpochs do 
-    engine:train{
-        network = model,
-        criterion = criterion,
-        iterator = getIterator('train'),
-        optimMethod = optim.adam,
-        maxepoch = 1,
-        config = {
-            learningRate = lr,
-            momentum = opt.momentum,
-            wd = opt.weightDecay
+
+if not opt.predictVal then
+    print("Start Training!")
+    while epoch <= opt.nEpochs do 
+        logger = optim.Logger('logs/loss.log')
+        logger:setNames{'Training Loss', 'Validation Loss'}
+        local trainLoss
+        local valLoss
+        engine:train{
+            network = model,
+            criterion = criterion,
+            iterator = getIterator('train'),
+            optimMethod = optim.adam,
+            maxepoch = 1,
+            config = {
+                learningRate = lr,
+                momentum = opt.momentum,
+                wd = opt.weightDecay
+            }
         }
-    }
-    cutorch.synchronize()
-    trainLoss = meter:value()/opt.batchsize
-    engine:test {
-        network = model,
-        criterion = criterion,
-        iterator = getIterator('val')
-    }
-    cutorch.synchronize()
-    valLoss = meter:value()/opt.batchsize
+        cutorch.synchronize()
+        trainLoss = meter:value()/opt.batchsize
+        -- engine:test {
+        --     network = model,
+        --     criterion = criterion,
+        --     iterator = getIterator('val')
+        -- }
+        -- cutorch.synchronize()
+        valLoss = meter:value()/opt.batchsize
+        current_loss = trainLoss
 
-    logger:add{trainLoss, valLoss}
+        logger:add{trainLoss, valLoss}
 
-    -- save the model if it is the best so far
-    if current_loss <= min_loss then
-        print("update model")
-        min_loss = current_loss
-        cudnn.convert(model, nn)
-        torch.save(opt.weightsDir .. opt.model .. '_weights.t7', model:clearState():float())
-        cudnn.convert(model, cudnn)
-    end
+        -- save the model if it is the best so far
+        if current_loss <= min_loss then
+            print("update model")
+            min_loss = current_loss
+            cudnn.convert(model, nn)
+            torch.save(opt.weightsDir .. opt.model .. '_weights.t7', model:clearState())
+            cudnn.convert(model, cudnn)
+        end
 
-    print('Done with Epoch ' .. tostring(epoch))
-    epoch = epoch + 1
+        print('Done with Epoch ' .. tostring(epoch))
+        epoch = epoch + 1
+    end 
+else 
+    print("Start Predicting")
+    logger = optim.Logger('logs/prediction.log')
+    logger:setNames{'Image ID', 'Caption'}
+    local dataset = ld:loadData("val")
+    local trans = require 'util/transform'
+    require 'ImgCapModel/vggLSTM'
+    -- for i = 1, #dataset do 
+    for i = 1, 100 do 
+        local image = trans.onInputImage(ld:loadImage("val", dataset[i].image_id))
+        if opt.cuda then 
+            image = image:cuda()
+        end
+        -- predict(imageinput, beamsearch, cuda)
+        local caption = model:predict(image, false, opt.cuda)
+        logger:add{dataset[i].image_id, caption}
+        print("No. " .. i .. " sample finished")
+    end 
 end
 
 
