@@ -4,16 +4,11 @@ require 'os'
 require 'xlua'
 require 'math'
 ld = require "util/load_data"
--- require 'cunn'
--- require 'cudnn'
--- require 'loadcaffe'
 
 local tnt = require 'torchnet'
 local optParser = require 'opts'
 local opt = optParser.parse(arg)
 -- torch.setdefaulttensortype('torch.FloatTensor')
-
-
 
 
 local train_set_size = 414113
@@ -22,6 +17,8 @@ local min_loss = 100 -- err of the best model
 local current_loss = 100 -- err of current bat
 
 ImgCap = {}
+
+
 
 
 
@@ -45,6 +42,13 @@ function getIterator(data_type)
             end,
         closure = function()
             local dataset = ld:loadData(data_type)
+            local image_features
+            if data_type == "train" then
+                image_features = torch.load('train_features.t7')
+            elseif data_type == "val" then
+                image_features = torch.load('val_features.t7')
+            end
+
             local trans = require 'util/transform'
             tnt.BatchDataset.get = require 'util/get_in_batchdataset'
 
@@ -55,7 +59,7 @@ function getIterator(data_type)
                     load = function(idx)
                         -- print(dataset[idx].image_id)
                         return {
-                            image = trans.onInputImage(ld:loadImage(data_type, dataset[idx].image_id)),
+                            image = image_features[dataset[idx].image_id],
                             text = trans.onInputText(dataset[idx].caption),
                             target = trans.onTarget(dataset[idx].caption)
                         }
@@ -83,7 +87,7 @@ config.batchsize = opt.batchsize
 local model
 
 -- Init model from previous trained result.
-if opt.cuda and  opt.useWeights then
+if opt.cuda and opt.useWeights then
     require 'cunn'
     require 'cudnn'
     require 'cutorch'
@@ -278,11 +282,12 @@ else
     -- logger = optim.Logger('logs/prediction.log')
     -- logger:setNames{'Image ID', 'Caption'}
     local dataset = ld:loadData("val")
+    local image_features = torch.load('val_features.t7')
     local trans = require 'util/transform'
     require 'ImgCapModel/vggLSTM'
     for i = 1, #dataset do 
     -- for i = 1, 100 do 
-        local image = trans.onInputImage(ld:loadImage("val", dataset[i].image_id))
+        local image = image_features[dataset[i].image_id]
         if opt.cuda then 
             image = image:cuda()
         end

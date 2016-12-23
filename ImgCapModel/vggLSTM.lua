@@ -12,71 +12,26 @@ function vggLSTM:__init(config)
     self.num_words = #self.ivocab
     self.embedding_vec = nn.LookupTable(self.num_words, config.embeddingDim)
     self.embedding_vec.weight:copy(ld:loadVocab2Emb())
-    self.embed_transpose = nn.Transpose({1,2})
-    self.output_transpose = nn.Transpose({1,2})
+    self.embed_transpose = nn.Transpose({ 1, 2 })
+    self.output_transpose = nn.Transpose({ 1, 2 })
 
 
-    -- Load image model after remove the last few layers.
-    -- loadcaffe [https://github.com/szagoruyko/loadcaffe]
-    -- And remove the layers after last linear layer. For vgg last is 42, (4096 -> 4096)
-    -- local imageModel
-    -- if not paths.filep("models/vgg.t7") then
-    --     require 'loadcaffe'
-    --     imageModel = loadcaffe.load(config.imageModelPrototxt, config.imageModelBinary)
-    --     for i = #imageModel.modules, config.imageOutputLayer + 1, -1 do
-    --         imageModel:remove(i)
-    --     end
-    --     imageModel:clearState()
-    --     -- torch.save("models/vgg.t7", imageModel)
-    -- else
-    --     imageModel = torch.load("models/vgg.t7")
-    -- end
-
-    -- self.imageModel = imageModel
-    -- print(self.imageModel)
-
-    -- visual rescale layer
-    -- local imageOutputSize = (#self.imageModel.modules[config.imageOutputLayer].weight)[1]
     self.visualRescale = nn.Linear(4096, config.embeddingDim)
 
     -- language model.
-   LSTMcell = nn.Sequential()
-           :add(nn.LSTM(config.embeddingDim, config.embeddingDim, 60))
-           :add(nn.LSTM(config.embeddingDim, config.embeddingDim, 60))
-           :add(nn.Linear(config.embeddingDim, self.num_words))
-           -- :add(nn.LogSoftMax())
-   self.LSTM = nn.Sequencer(LSTMcell)
-
-    -- self.LSTM = nn.SeqLSTMP(config.embeddingDim, config.embeddingDim, self.num_words)
-    -- self.LSTM.batchfirst = true
+    local LSTMcell = nn.Sequential()
+        :add(nn.LSTM(config.embeddingDim, config.embeddingDim, 60))
+        :add(nn.LSTM(config.embeddingDim, config.embeddingDim, 60))
+        :add(nn.Linear(config.embeddingDim, self.num_words))
+    -- :add(nn.LogSoftMax())
+    self.LSTM = nn.Sequencer(LSTMcell)
     collectgarbage()
-
 end
-
--- function vggLSTM:separateBatch(input)
---     local batch_size = #input
-
---     local image_size = input[1].image:size()
---     local caption_size = input[1].caption:size()
---     local image_tensor = torch.DoubleTensor(batch_size, image_size[1],image_size[2],image_size[3])
---     local caption_tensor = torch.DoubleTensor(batch_size, caption_size[1])
-
---     for i = 1, batch_size do 
---         image_tensor[i]:copy(input[i].image)
---         caption_tensor[i]:copy(input[i].caption)
---     end
---     -- print(image_tensor:size())
---     -- print(caption_tensor:size())
-
---     return {['image']=image_tensor, ['caption']=caption_tensor}
--- end
 
 function vggLSTM:forward(input)
 
     -- image nets
-
-    -- self.outputImageModel = self.imageModel:forward(input.image)
-    self.visualFeatureRescaled = self.visualRescale:forward(self.outputImageModel)
+    self.visualFeatureRescaled = self.visualRescale:forward(input.image)
 
     -- vggLSTM -> LSTM -> sequencer -> recursor -> LSTMcell -> nn.LSTM, init h0 with visual feature
     self.LSTM.module.module.modules[1].userPrevOutput = self.visualFeatureRescaled
@@ -99,32 +54,26 @@ function vggLSTM:backward(input, grad)
     local lstmInGrad = self.LSTM:backward(self.text_embedding_transpose, gradT)
     local lstmInGradT = self.embed_transpose:backward(self.text_embedding, lstmInGrad)
     -- backprop the rescale visual feature layer
-    local gradVisualFeature = self.visualRescale:backward(self.outputImageModel, self.LSTM.module.module.modules[1].gradPrevOutput)
+    self.visualRescale:backward(input.image, self.LSTM.module.module.modules[1].gradPrevOutput)
 
     self.embedding_vec:backward(input.text, lstmInGradT)
     collectgarbage()
 end
 
 function vggLSTM:predict(imageInput, beam_search, cuda)
-    -- assert(imageInput:type() == "torch.DoubleTensor", "Type error, predict image input type should be torch.DoubleTensor")
-    assert(imageInput:size()[1] == 3, "image channel error, predict image channel should be 3")
-    assert(imageInput:size()[2] == 224, "Size error, predict image input size should be 224 * 224")
-    assert(imageInput:size()[3] == 224, "Size error, predict image input size should be 224 * 224")
-
-    local outputImageModel = self.imageModel:forward(imageInput)
-    local visualFeatureRescaled = self.visualRescale:forward(outputImageModel)
+    local visualFeatureRescaled = self.visualRescale:forward(imageInput)
     self.LSTM.module.module.modules[1].userPrevOutput = self.visualFeatureRescaled
     --Go id is 2, Eos id is 3
     local result = {}
     local textTensor
     local textInput
     local count = 1
-    if not beam_search then 
+    if not beam_search then
         local lastWordIdx = 2
 
-        while(lastWordIdx ~= 3) and count < 40 do 
-            textTensor = torch.IntTensor({lastWordIdx})
-            if cuda then 
+        while (lastWordIdx ~= 3) and count < 40 do
+            textTensor = torch.IntTensor({ lastWordIdx })
+            if cuda then
                 textTensor = textTensor:cuda()
             end
             if count ~= 1 then
@@ -158,20 +107,20 @@ function vggLSTM:predict(imageInput, beam_search, cuda)
             self.prevCell_2 = self.LSTM.module.module.modules[2].cell
             self.prevHidden_2 = self.LSTM.module.module.modules[2].output
             -- print(self.prevCell_2)
-            val, idx = torch.max(self.LSTMoutput:float(),2)
-            lastWordIdx = torch.totable(idx)[1][1] 
+            val, idx = torch.max(self.LSTMoutput:float(), 2)
+            lastWordIdx = torch.totable(idx)[1][1]
             print(lastWordIdx .. ' ' .. self.ivocab[lastWordIdx])
-            table.insert(result,lastWordIdx)
+            table.insert(result, lastWordIdx)
             count = count + 1
         end
     end
 
     return self:convertWordIdxToSentence(result)
-end 
+end
 
 function vggLSTM:convertWordIdxToSentence(tokenIndices)
     local sentence = {}
-    for i = 1, #tokenIndices do 
+    for i = 1, #tokenIndices do
         local word = self.ivocab[tokenIndices[i]]
         table.insert(sentence, word)
     end
@@ -181,9 +130,7 @@ end
 
 function vggLSTM:parameters()
     local modules = nn.Parallel()
-    modules:add(self.embedding_vec)
-           :add(self.visualRescale)
-           :add(self.LSTM)
+    modules:add(self.embedding_vec):add(self.visualRescale):add(self.LSTM)
     return modules:parameters()
 end
 
@@ -196,7 +143,7 @@ function vggLSTM:cuda()
     -- self.imageModel:cuda()
     self.visualRescale:cuda()
 
-   self.LSTM:cuda()
+    self.LSTM:cuda()
 end
 
 return vggLSTM
