@@ -111,9 +111,9 @@ function vggLSTM:predict(imageInput, beam_search, cuda)
     assert(imageInput:size()[2] == 224, "Size error, predict image input size should be 224 * 224")
     assert(imageInput:size()[3] == 224, "Size error, predict image input size should be 224 * 224")
 
-    self.LSTM.module.module.modules[1].userPrevCell = self.LSTM.module.module.modules[1].zeroTensor
-    self.LSTM.module.module.modules[2].userPrevCell = self.LSTM.module.module.modules[2].zeroTensor
-    self.LSTM.module.module.modules[2].userPrevOutput = self.LSTM.module.module.modules[2].zeroTensor
+    -- self.LSTM.module.module.modules[1].userPrevCell = self.LSTM.module.module.modules[1].zeroTensor
+    -- self.LSTM.module.module.modules[2].userPrevCell = self.LSTM.module.module.modules[2].zeroTensor
+    -- self.LSTM.module.module.modules[2].userPrevOutput = self.LSTM.module.module.modules[2].zeroTensor
 
     local outputImageModel = self.imageModel:forward(imageInput)
     local visualFeatureRescaled = self.visualRescale:forward(outputImageModel)
@@ -138,7 +138,7 @@ function vggLSTM:predict(imageInput, beam_search, cuda)
                 -- print("LSTM hidden size")
                 -- print(self.prevHidden_2:size())
                 self.LSTM.module.module.modules[1].userPrevOutput = self.prevHidden_1
-                self.LSTM.module.module.modules[2].userPrevOutput = self.prevHidden_2
+                self.LSTM.module.module.modules[2].userPrevOutput= self.prevHidden_2
                 -- print("lllll_2")
                 self.LSTM.module.module.modules[1].userPrevCell = self.prevCell_1
                 -- print("lllll_3")
@@ -148,13 +148,13 @@ function vggLSTM:predict(imageInput, beam_search, cuda)
 
 
             textInput = self.embedding_vec:forward(textTensor)
-            print(textInput:size())
-            if count == 1 then
-                self.LSTMoutput = self.LSTM:forward(textInput)
-            else
-                print(self.prevHidden_2:size())
-                self.LSTMoutput = self.LSTM:forward(self.prevHidden_2:view(1,-1))
-            end
+            -- print(textInput:size())
+            -- if count == 1 then
+            self.LSTMoutput = self.LSTM:forward(textInput)
+            -- else
+            --     print(self.prevHidden_2:size())
+            --     self.LSTMoutput = self.LSTM:forward(self.prevHidden_2:view(1,-1))
+            -- end
 
             self.prevCell_1 = self.LSTM.module.module.modules[1].cell
             self.prevHidden_1 = self.LSTM.module.module.modules[1].output
