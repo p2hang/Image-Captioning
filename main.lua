@@ -198,7 +198,7 @@ engine.hooks.onForwardCriterion = function(state)
     timer:incUnit()
 end
 
-engine.hooks.onBackword = function(state)
+engine.hooks.onBackward = function(state)
     state.gradParams = torch.clamp(state.gradParams, -1, 1)
 end 
 
@@ -219,16 +219,17 @@ local epoch = 1
 
 if not opt.predictVal then
     print("Start Training!")
+    logger = optim.Logger('logs/loss.log')
+    logger:setNames{'Training Loss', 'Validation Loss'}
     while epoch <= opt.nEpochs do 
-        logger = optim.Logger('logs/loss.log')
-        logger:setNames{'Training Loss', 'Validation Loss'}
+        
         local trainLoss
         local valLoss
         engine:train{
             network = model,
             criterion = criterion,
             iterator = getIterator('train'),
-            optimMethod = optim.adam,
+            optimMethod = optim.sdg,
             maxepoch = 1,
             config = {
                 learningRate = lr,
