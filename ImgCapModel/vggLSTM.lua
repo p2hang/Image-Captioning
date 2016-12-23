@@ -19,25 +19,25 @@ function vggLSTM:__init(config)
     -- Load image model after remove the last few layers.
     -- loadcaffe [https://github.com/szagoruyko/loadcaffe]
     -- And remove the layers after last linear layer. For vgg last is 42, (4096 -> 4096)
-    local imageModel
-    if not paths.filep("models/vgg.t7") then
-        require 'loadcaffe'
-        imageModel = loadcaffe.load(config.imageModelPrototxt, config.imageModelBinary)
-        for i = #imageModel.modules, config.imageOutputLayer + 1, -1 do
-            imageModel:remove(i)
-        end
-        imageModel:clearState()
-        -- torch.save("models/vgg.t7", imageModel)
-    else
-        imageModel = torch.load("models/vgg.t7")
-    end
+    -- local imageModel
+    -- if not paths.filep("models/vgg.t7") then
+    --     require 'loadcaffe'
+    --     imageModel = loadcaffe.load(config.imageModelPrototxt, config.imageModelBinary)
+    --     for i = #imageModel.modules, config.imageOutputLayer + 1, -1 do
+    --         imageModel:remove(i)
+    --     end
+    --     imageModel:clearState()
+    --     -- torch.save("models/vgg.t7", imageModel)
+    -- else
+    --     imageModel = torch.load("models/vgg.t7")
+    -- end
 
-    self.imageModel = imageModel
+    -- self.imageModel = imageModel
     -- print(self.imageModel)
 
     -- visual rescale layer
-    local imageOutputSize = (#self.imageModel.modules[config.imageOutputLayer].weight)[1]
-    self.visualRescale = nn.Linear(imageOutputSize, config.embeddingDim)
+    -- local imageOutputSize = (#self.imageModel.modules[config.imageOutputLayer].weight)[1]
+    self.visualRescale = nn.Linear(4096, config.embeddingDim)
 
     -- language model.
    LSTMcell = nn.Sequential()
@@ -53,29 +53,29 @@ function vggLSTM:__init(config)
 
 end
 
-function vggLSTM:separateBatch(input)
-    local batch_size = #input
+-- function vggLSTM:separateBatch(input)
+--     local batch_size = #input
 
-    local image_size = input[1].image:size()
-    local caption_size = input[1].caption:size()
-    local image_tensor = torch.DoubleTensor(batch_size, image_size[1],image_size[2],image_size[3])
-    local caption_tensor = torch.DoubleTensor(batch_size, caption_size[1])
+--     local image_size = input[1].image:size()
+--     local caption_size = input[1].caption:size()
+--     local image_tensor = torch.DoubleTensor(batch_size, image_size[1],image_size[2],image_size[3])
+--     local caption_tensor = torch.DoubleTensor(batch_size, caption_size[1])
 
-    for i = 1, batch_size do 
-        image_tensor[i]:copy(input[i].image)
-        caption_tensor[i]:copy(input[i].caption)
-    end
-    -- print(image_tensor:size())
-    -- print(caption_tensor:size())
+--     for i = 1, batch_size do 
+--         image_tensor[i]:copy(input[i].image)
+--         caption_tensor[i]:copy(input[i].caption)
+--     end
+--     -- print(image_tensor:size())
+--     -- print(caption_tensor:size())
 
-    return {['image']=image_tensor, ['caption']=caption_tensor}
-end
+--     return {['image']=image_tensor, ['caption']=caption_tensor}
+-- end
 
 function vggLSTM:forward(input)
 
     -- image nets
 
-    self.outputImageModel = self.imageModel:forward(input.image)
+    -- self.outputImageModel = self.imageModel:forward(input.image)
     self.visualFeatureRescaled = self.visualRescale:forward(self.outputImageModel)
 
     -- vggLSTM -> LSTM -> sequencer -> recursor -> LSTMcell -> nn.LSTM, init h0 with visual feature
@@ -193,7 +193,7 @@ function vggLSTM:cuda()
     self.embed_transpose:cuda()
     self.output_transpose:cuda()
 
-    self.imageModel:cuda()
+    -- self.imageModel:cuda()
     self.visualRescale:cuda()
 
    self.LSTM:cuda()
