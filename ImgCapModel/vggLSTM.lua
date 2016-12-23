@@ -111,6 +111,10 @@ function vggLSTM:predict(imageInput, beam_search, cuda)
     assert(imageInput:size()[2] == 224, "Size error, predict image input size should be 224 * 224")
     assert(imageInput:size()[3] == 224, "Size error, predict image input size should be 224 * 224")
 
+    self.LSTM.module.module.modules[1].userPrevCell = self.LSTM.module.module.modules[1].zeroTensor
+    self.LSTM.module.module.modules[2].userPrevCell = self.LSTM.module.module.modules[2].zeroTensor
+    self.LSTM.module.module.modules[2].userPrevOutput = self.LSTM.module.module.modules[2].zeroTensor
+
     local outputImageModel = self.imageModel:forward(imageInput)
     local visualFeatureRescaled = self.visualRescale:forward(outputImageModel)
     self.LSTM.module.module.modules[1].userPrevOutput = self.visualFeatureRescaled
@@ -141,23 +145,23 @@ function vggLSTM:predict(imageInput, beam_search, cuda)
                 self.LSTM.module.module.modules[2].userPrevCell = self.prevCell_2
             end
 
-            -- if count == 1 then
-            --     self.LSTM.module.module.modules[1].cell:zero()
-            --     self.LSTM.module.module.modules[2].
-            -- end 
-            -- print(textTensor:type())
-            -- print(textTensor)
+
 
             textInput = self.embedding_vec:forward(textTensor)
-            -- print(textInput:size())
-            self.LSTMoutput = self.LSTM:forward(textInput)
-            -- print(self.LSTMout:size())
+            print(textInput:size())
+            if count == 1 then
+                self.LSTMoutput = self.LSTM:forward(textInput)
+            else
+                print(self.prevHidden_2:size())
+                self.LSTMoutput = self.LSTM:forward(self.prevHidden_2:view(1,-1))
+            end
+
             self.prevCell_1 = self.LSTM.module.module.modules[1].cell
             self.prevHidden_1 = self.LSTM.module.module.modules[1].output
-            -- print(self.prevCell_1)
+
             self.prevCell_2 = self.LSTM.module.module.modules[2].cell
             self.prevHidden_2 = self.LSTM.module.module.modules[2].output
-            -- print(self.prevCell_2)
+
             val, idx = torch.max(self.LSTMoutput:float(),2)
             lastWordIdx = torch.totable(idx)[1][1] 
             print(lastWordIdx .. ' ' .. self.ivocab[lastWordIdx])

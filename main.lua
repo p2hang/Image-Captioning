@@ -201,8 +201,8 @@ end
 engine.hooks.onBackward = function(state)
     local maxGrad = torch.max(state.gradParams)
     local minGrad = torch.min(state.gradParams)
-    print("Range for the gradients: Max Gradients: " .. maxGrad .. " Min Gradients: " .. minGrad)
-    state.gradParams = torch.clamp(state.gradParams, -1, 1)
+    print("Max Gradients: " .. maxGrad .. " Min Gradients: " .. minGrad)
+    state.gradParams:clamp(-1, 1)
 end 
 
 
