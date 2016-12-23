@@ -19,9 +19,6 @@ local current_loss = 100 -- err of current bat
 ImgCap = {}
 
 
-
-
-
 torch.setdefaulttensortype('torch.DoubleTensor')
 
 torch.manualSeed(opt.manualSeed)
@@ -48,6 +45,7 @@ function getIterator(data_type)
             elseif data_type == "val" then
                 image_features = torch.load('val_features.t7')
             end
+	    collectgarbage()
 
             local trans = require 'util/transform'
             tnt.BatchDataset.get = require 'util/get_in_batchdataset'
@@ -57,9 +55,11 @@ function getIterator(data_type)
                 dataset = tnt.ListDataset{
                     list = torch.range(1, #dataset / 5):long(),
                     load = function(idx)
-                        -- print(dataset[idx].image_id)
+        		local id = string.format("%012d", dataset[idx].image_id)
+			--print(dataset[idx].image_id)
+                        --print(image_features[dataset[idx].image_id]:size())
                         return {
-                            image = image_features[dataset[idx].image_id],
+                            image = image_features[id],
                             text = trans.onInputText(dataset[idx].caption),
                             target = trans.onTarget(dataset[idx].caption)
                         }
@@ -74,7 +74,7 @@ end
 ---- Config or load the model.
 -----------------------------------------------------------------------
 
-
+ 
 local config = {} -- config for model, default as vgg
 config.embeddingDim = opt.embeddingDim
 config.imageOutputLayer = opt.imageLayer
@@ -97,6 +97,7 @@ if opt.cuda and opt.useWeights then
     -- cudnn.convert(model, cudnn)
 else 
     model = ImgCap.vggLSTM(config)
+    torch.save(opt.weightsDir .. opt.model .. '_weights.t7', model:clearState())
 end
 
 -----------------------------------------------------------------------
@@ -143,10 +144,6 @@ if opt.cuda then
 
     engine.hooks.onSample = function(state)
         -- print(state.sample.input.image)
-        assert(type(state.sample.input.image) == 'userdata',
-            "incorrect data type: " .. type(state.sample.input.image))
-        assert(state.sample.input.image:type() == "torch.DoubleTensor",
-            "image type incorrect, got type: " .. state.sample.input.image:type())
         state.sample.input.image = state.sample.input.image:cuda()
         state.sample.input.text = state.sample.input.text:cuda()
         if state.sample.target then
@@ -156,6 +153,7 @@ if opt.cuda then
 
 end
 
+print(model)
 
 -----------------------------------------------------------------------
 ---- Train with engine
@@ -190,7 +188,7 @@ engine.hooks.onForwardCriterion = function(state)
         end
         local current = torchTimer:time().real
         local timeElapsed = current - lastFinishTime
-
+        lastFinishTime = current
         local remainStep = num_iters - batch
         local step = (current - startTime) / batch
         local remainTimeTotal = remainStep * step
@@ -208,10 +206,11 @@ engine.hooks.onForwardCriterion = function(state)
 end
 
 engine.hooks.onBackward = function(state)
-    local maxGrad = torch.max(state.gradParams)
-    local minGrad = torch.min(state.gradParams)
+    local maxGrad = torch.max(state.gradParams) * opt.LR
+    local minGrad = torch.min(state.gradParams) * opt.LR
     print("Range for the gradients: Max Gradients: " .. maxGrad .. " Min Gradients: " .. minGrad)
-    state.gradParams = torch.clamp(state.gradParams, -1, 1)
+    --state.gradParams = torch.clamp(state.gradParams, -1, 1)
+    collectgarbage()
 end 
 
 
@@ -222,7 +221,7 @@ engine.hooks.onEnd = function(state)
     -- mode, meter:value(), clerr:value{k = 1}, timer:value()))
     collectgarbage()
     -- the error on end of the training
-     current_loss = meter:value()/opt.batchsize
+    current_loss = meter:value()/opt.batchsize
 end
 
 local lr = opt.LR 
@@ -246,21 +245,22 @@ if not opt.predictVal then
             config = {
                 learningRate = lr,
                 momentum = opt.momentum,
-                wd = opt.weightDecay
+--                wd = opt.weightDecay
             }
         }
         cutorch.synchronize()
         trainLoss = meter:value()/opt.batchsize
 
-        -- engine:test {
-        --     network = model,
-        --     criterion = criterion,
-        --     iterator = getIterator('val')
-        -- }
-        -- cutorch.synchronize()
+        
+        engine:test {
+            network = model,
+            criterion = criterion,
+            iterator = getIterator('val')
+        }
+        cutorch.synchronize()
 
         valLoss = meter:value()/opt.batchsize
-        current_loss = trainLoss
+        current_loss = valLoss
 
         logger:add{trainLoss, valLoss}
 
@@ -287,7 +287,7 @@ else
     require 'ImgCapModel/vggLSTM'
     for i = 1, #dataset do 
     -- for i = 1, 100 do 
-        local image = image_features[dataset[i].image_id]
+        local image = image_features[string.format("%012d", dataset[idx].image_id)]
         if opt.cuda then 
             image = image:cuda()
         end

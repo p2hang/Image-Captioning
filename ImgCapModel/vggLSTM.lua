@@ -16,7 +16,9 @@ function vggLSTM:__init(config)
     self.output_transpose = nn.Transpose({ 1, 2 })
 
 
-    self.visualRescale = nn.Linear(4096, config.embeddingDim)
+    self.visualRescale = nn.Sequential()
+        :add(nn.Linear(4096, config.embeddingDim))
+        :add(nn.BatchNormalization(config.embeddingDim))
 
     -- language model.
     local LSTMcell = nn.Sequential()
