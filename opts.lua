@@ -9,8 +9,13 @@ function M.parse(arg)
     cmd:option('-data',             '',             'Path to dataset')
     cmd:option('-val',              10,             'Percentage to use for validation set')
     cmd:option('-nEpochs',          30,             'Maximum epochs')
+<<<<<<< HEAD
     cmd:option('-batchsize',        180,             'Batch size for epochs')
     cmd:option('-nThreads',         2,              'Number of dataloading threads')
+=======
+    cmd:option('-batchsize',        56,             'Batch size for epochs')
+    cmd:option('-nThreads',         1,              'Number of dataloading threads')
+>>>>>>> 9cc1ec0b5027b4ab01077aaa900b8147db4c89fd
     cmd:option('-manualSeed',       '0',            'Manual seed for RNG')
     cmd:option('-LR',               0.01,            'initial learning rate')
     cmd:option('-minimumLR',        0.001,          'minimum Learning Rate')
