@@ -13,6 +13,9 @@ local optParser = require 'opts'
 local opt = optParser.parse(arg)
 -- torch.setdefaulttensortype('torch.FloatTensor')
 
+
+
+
 local train_set_size = 414113
 local val_set_size = 201654
 local min_loss = 100 -- err of the best model
@@ -20,10 +23,7 @@ local current_loss = 100 -- err of current bat
 
 ImgCap = {}
 
-logger = optim.Logger('logs/loss.log')
-logger:setNames{'Training Loss', 'Validation Loss'}
-local trainLoss
-local valLoss
+
 
 torch.setdefaulttensortype('torch.DoubleTensor')
 
@@ -51,7 +51,7 @@ function getIterator(data_type)
             return tnt.BatchDataset{
                 batchsize = opt.batchsize,
                 dataset = tnt.ListDataset{
-                    list = torch.range(1, #dataset):long(),
+                    list = torch.range(1, #dataset / 5):long(),
                     load = function(idx)
                         -- print(dataset[idx].image_id)
                         return {
@@ -113,9 +113,9 @@ if opt.cuda then
     require 'cunn'
     require 'cudnn'
     require 'cutorch'
-    cudnn.benchmark = true
-    cudnn.fastest = true
-    cutorch.setDevice(opt.gpuid)
+    -- cudnn.benchmark = true
+    -- cudnn.fastest = true
+    cutorch.setDevice(1)
     cudnn.convert(model, cudnn)
 
     -- if opt.nGPU > 1 then
@@ -139,8 +139,10 @@ if opt.cuda then
 
     engine.hooks.onSample = function(state)
         -- print(state.sample.input.image)
-        assert(type(state.sample.input.image) == 'userdata', "incorrect data type: " .. type(state.sample.input.image))
-        assert(state.sample.input.image:type() == "torch.DoubleTensor", "image type incorrect, got type: " .. state.sample.input.image:type())
+        assert(type(state.sample.input.image) == 'userdata',
+            "incorrect data type: " .. type(state.sample.input.image))
+        assert(state.sample.input.image:type() == "torch.DoubleTensor",
+            "image type incorrect, got type: " .. state.sample.input.image:type())
         state.sample.input.image = state.sample.input.image:cuda()
         state.sample.input.text = state.sample.input.text:cuda()
         if state.sample.target then
@@ -201,6 +203,13 @@ engine.hooks.onForwardCriterion = function(state)
     timer:incUnit()
 end
 
+engine.hooks.onBackward = function(state)
+    local maxGrad = torch.max(state.gradParams)
+    local minGrad = torch.min(state.gradParams)
+    print("Range for the gradients: Max Gradients: " .. maxGrad .. " Min Gradients: " .. minGrad)
+    state.gradParams = torch.clamp(state.gradParams, -1, 1)
+end 
+
 
 engine.hooks.onEnd = function(state)
     print(string.format("%s: avg. loss: %2.4f; time: %2.4f",
@@ -215,43 +224,74 @@ end
 local lr = opt.LR 
 local epoch = 1
 
-print("Start Training!")
-while epoch <= opt.nEpochs do 
-    engine:train{
-        network = model,
-        criterion = criterion,
-        iterator = getIterator('train'),
-        optimMethod = optim.adam,
-        maxepoch = 1,
-        config = {
-            learningRate = lr,
-            momentum = opt.momentum,
-            wd = opt.weightDecay
+
+if not opt.predictVal then
+    print("Start Training!")
+    logger = optim.Logger('logs/loss.log')
+    logger:setNames{'Training Loss', 'Validation Loss'}
+    while epoch <= opt.nEpochs do 
+        
+        local trainLoss
+        local valLoss
+        engine:train{
+            network = model,
+            criterion = criterion,
+            iterator = getIterator('train'),
+            optimMethod = optim.adam,
+            maxepoch = 1,
+            config = {
+                learningRate = lr,
+                momentum = opt.momentum,
+                wd = opt.weightDecay
+            }
         }
-    }
-    cutorch.synchronize()
-    trainLoss = meter:value()/opt.batchsize
-    engine:test {
-        network = model,
-        criterion = criterion,
-        iterator = getIterator('val')
-    }
-    cutorch.synchronize()
-    valLoss = meter:value()/opt.batchsize
+        cutorch.synchronize()
+        trainLoss = meter:value()/opt.batchsize
 
-    logger:add{trainLoss, valLoss}
+        -- engine:test {
+        --     network = model,
+        --     criterion = criterion,
+        --     iterator = getIterator('val')
+        -- }
+        -- cutorch.synchronize()
 
-    -- save the model if it is the best so far
-    if current_loss <= min_loss then
-        print("update model")
-        min_loss = current_loss
-        cudnn.convert(model, nn)
-        torch.save(opt.weightsDir .. opt.model .. '_weights.t7', model:clearState():float())
-        cudnn.convert(model, cudnn)
-    end
+        valLoss = meter:value()/opt.batchsize
+        current_loss = trainLoss
 
-    print('Done with Epoch ' .. tostring(epoch))
-    epoch = epoch + 1
+        logger:add{trainLoss, valLoss}
+
+        -- save the model if it is the best so far
+        if current_loss <= min_loss then
+            print("update model")
+            min_loss = current_loss
+            cudnn.convert(model, nn)
+            torch.save(opt.weightsDir .. opt.model .. '_weights.t7', model:clearState())
+            cudnn.convert(model, cudnn)
+        end
+
+        print('Done with Epoch ' .. tostring(epoch))
+        epoch = epoch + 1
+    end 
+else 
+    print("Start Predicting")
+    file = io.open("logs/prediction.log", "w")
+    -- logger = optim.Logger('logs/prediction.log')
+    -- logger:setNames{'Image ID', 'Caption'}
+    local dataset = ld:loadData("val")
+    local trans = require 'util/transform'
+    require 'ImgCapModel/vggLSTM'
+    for i = 1, #dataset do 
+    -- for i = 1, 100 do 
+        local image = trans.onInputImage(ld:loadImage("val", dataset[i].image_id))
+        if opt.cuda then 
+            image = image:cuda()
+        end
+        -- predict(imageinput, beamsearch, cuda)
+        local caption = model:predict(image, false, opt.cuda)
+        -- logger:add{dataset[i].image_id, caption}
+        file:write(dataset[i].image_id .. " " .. caption .. "\n")
+        print("No. " .. i .. " sample finished")
+    end 
 end
 
 
@@ -260,3 +300,4 @@ end
 
 
 print("The End!")
+

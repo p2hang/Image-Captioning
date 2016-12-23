@@ -5,6 +5,7 @@ require 'cunn'
 require 'cudnn'
 require 'image'
 
+dataset = 'train'
 
 local result = {}
 
@@ -23,7 +24,7 @@ end
 
 model = model:cuda()
 cudnn.convert(model, cudnn)
-list = csvigo.load{ path='data/trainlist.txt' }.data
+list = csvigo.load{ path='data/'..dataset..'list1.txt' }.data
 
 
 
@@ -34,8 +35,10 @@ batch_size = 40
 for i = 0, #list / batch_size + 1  do
 
     curBatch = {}
-    for j = 1, batch_size and i * batch_size + j <= #list do
-        img = image.load('data/'..'train2014/'..list[i])
+    for j = 1, batch_size do
+        if i * batch_size + j > #list then break end
+
+        img = image.load('data/'..dataset..'2014/'..list[i*batch_size + j])
         rescaled_img =  trans.onInputImage(img)
         sample = {['img']=rescaled_img}
         table.insert(curBatch, sample)
@@ -48,11 +51,14 @@ for i = 0, #list / batch_size + 1  do
       result[image_id] = output[j]
     end
     
+    collectgarbage()
     print(i)
+
+    if (i + 1) * batch_size >= #list then break end
 end
 
 
 
-torch.save(result, "train_features.t7")
+torch.save(dataset.."_features1.t7", result)
 
 

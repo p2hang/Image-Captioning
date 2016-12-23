@@ -105,8 +105,8 @@ function vggLSTM:backward(input, grad)
     collectgarbage()
 end
 
-function vggLSTM:predict(imageInput, beam_search)
-    assert(imageInput:type() == "torch.DoubleTensor", "Type error, predict image input type should be torch.DoubleTensor")
+function vggLSTM:predict(imageInput, beam_search, cuda)
+    -- assert(imageInput:type() == "torch.DoubleTensor", "Type error, predict image input type should be torch.DoubleTensor")
     assert(imageInput:size()[1] == 3, "image channel error, predict image channel should be 3")
     assert(imageInput:size()[2] == 224, "Size error, predict image input size should be 224 * 224")
     assert(imageInput:size()[3] == 224, "Size error, predict image input size should be 224 * 224")
@@ -116,19 +116,57 @@ function vggLSTM:predict(imageInput, beam_search)
     self.LSTM.module.module.modules[1].userPrevOutput = self.visualFeatureRescaled
     --Go id is 2, Eos id is 3
     local result = {}
+    local textTensor
+    local textInput
+    local count = 1
     if not beam_search then 
         local lastWordIdx = 2
-        while(lastWordIdx ~= 3) do 
-            local textTensor = torch.IntTensor({lastWordIdx})
-            local textInput = self.embedding_vec:forward(textTensor)
-            local LSTMout = self.LSTM:forward(textInput)
-            val, idx = torch.max(LSTMout)
-            table.insert(result,idx)
-            lastWordIdx = idx 
+
+        while(lastWordIdx ~= 3) and count < 40 do 
+            textTensor = torch.IntTensor({lastWordIdx})
+            if cuda then 
+                textTensor = textTensor:cuda()
+            end
+            if count ~= 1 then
+                -- print("lllll_1")
+                -- print("User prev output size")
+                -- print(self.LSTM.module.module.modules[1].userPrevOutput:size())
+                -- print("LSTM hidden size")
+                -- print(self.prevHidden_2:size())
+                self.LSTM.module.module.modules[1].userPrevOutput = self.prevHidden_1
+                self.LSTM.module.module.modules[2].userPrevOutput = self.prevHidden_2
+                -- print("lllll_2")
+                self.LSTM.module.module.modules[1].userPrevCell = self.prevCell_1
+                -- print("lllll_3")
+                self.LSTM.module.module.modules[2].userPrevCell = self.prevCell_2
+            end
+
+            -- if count == 1 then
+            --     self.LSTM.module.module.modules[1].cell:zero()
+            --     self.LSTM.module.module.modules[2].
+            -- end 
+            -- print(textTensor:type())
+            -- print(textTensor)
+
+            textInput = self.embedding_vec:forward(textTensor)
+            -- print(textInput:size())
+            self.LSTMoutput = self.LSTM:forward(textInput)
+            -- print(self.LSTMout:size())
+            self.prevCell_1 = self.LSTM.module.module.modules[1].cell
+            self.prevHidden_1 = self.LSTM.module.module.modules[1].output
+            -- print(self.prevCell_1)
+            self.prevCell_2 = self.LSTM.module.module.modules[2].cell
+            self.prevHidden_2 = self.LSTM.module.module.modules[2].output
+            -- print(self.prevCell_2)
+            val, idx = torch.max(self.LSTMoutput:float(),2)
+            lastWordIdx = torch.totable(idx)[1][1] 
+            print(lastWordIdx .. ' ' .. self.ivocab[lastWordIdx])
+            table.insert(result,lastWordIdx)
+            count = count + 1
         end
     end
 
-    return convertWordIdxToSentence(result)
+    return self:convertWordIdxToSentence(result)
 end 
 
 function vggLSTM:convertWordIdxToSentence(tokenIndices)
@@ -144,7 +182,7 @@ end
 function vggLSTM:parameters()
     local modules = nn.Parallel()
     modules:add(self.embedding_vec)
-           :add(self.imageModel)
+           :add(self.visualRescale)
            :add(self.LSTM)
     return modules:parameters()
 end
@@ -162,3 +200,4 @@ function vggLSTM:cuda()
 end
 
 return vggLSTM
+

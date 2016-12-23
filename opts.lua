@@ -12,7 +12,7 @@ function M.parse(arg)
     cmd:option('-batchsize',        22,             'Batch size for epochs')
     cmd:option('-nThreads',         3,              'Number of dataloading threads')
     cmd:option('-manualSeed',       '0',            'Manual seed for RNG')
-    cmd:option('-LR',               0.003,            'initial learning rate')
+    cmd:option('-LR',               0.001,            'initial learning rate')
     cmd:option('-minimumLR',        0.001,          'minimum Learning Rate')
     cmd:option('-LRanneallingRate', 0.93,           'Annealing rate of learning rate')
     cmd:option('-momentum',         0.9,            'momentum')
@@ -20,7 +20,6 @@ function M.parse(arg)
     cmd:option('-logDir',           'logs',         'log directory')
     cmd:option('-model',            'vggLSTM',      'Model to use for training')
     cmd:option('-verbose',          false,          'Print stats for every batch')
-    cmd:option('-continueTrain',    0,              'Continue to train on certain epoch')
     cmd:option('-sub',              '',             'The submission file index')
     cmd:option('-AnnealingLR',      false,          'Whether we have annealing learning rate')
     cmd:option('-cuda',             false,          'Use cuda tensor')
@@ -34,6 +33,7 @@ function M.parse(arg)
     cmd:option('-numWords',         38423,           'number of words in the dataset')
     cmd:option('-weightsDir',       'weights/',      'Path to save the model and weights')
     cmd:option('-useWeights',        false,              'use weights trained before')
+    cmd:option('-predictVal',        false,           'Generate text with validaton set data')
 
     -- TODO: num words default value
 
@@ -47,3 +47,4 @@ function M.parse(arg)
 end
 
 return M
+
