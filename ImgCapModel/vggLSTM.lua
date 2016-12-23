@@ -18,12 +18,11 @@ function vggLSTM:__init(config)
 
     self.visualRescale = nn.Sequential()
         :add(nn.Linear(4096, config.embeddingDim))
-        :add(nn.BatchNormalization(config.embeddingDim))
 
     -- language model.
+    nn.FastLSTM.bn = true
     local LSTMcell = nn.Sequential()
-        :add(nn.LSTM(config.embeddingDim, config.embeddingDim, 60))
-        :add(nn.LSTM(config.embeddingDim, config.embeddingDim, 60))
+        :add(nn.FastLSTM(config.embeddingDim, config.embeddingDim, 60))
         :add(nn.Linear(config.embeddingDim, self.num_words))
     -- :add(nn.LogSoftMax())
     self.LSTM = nn.Sequencer(LSTMcell)
@@ -49,12 +48,6 @@ function vggLSTM:forward(input)
 end
 
 
-function vggLSTM:clearState()
-    nn.utils.clear(self, 'visualFeatureRescaled', 'lSTMout', 'output', 'text_embedding', 'text_embedding_transpose', '')
-    return parent.clearState(self)
-
-end
-
 function vggLSTM:backward(input, grad)
 
     local gradT = self.output_transpose:backward(self.LSTMout, grad)
@@ -70,13 +63,15 @@ function vggLSTM:backward(input, grad)
 end
 
 function vggLSTM:predict(imageInput, beam_search, cuda)
-    local visualFeatureRescaled = self.visualRescale:forward(imageInput)
-    self.LSTM.module.module.modules[1].userPrevOutput = self.visualFeatureRescaled
+    self.LSTM.module.module.modules[1].userPrevOutput = self.visualRescale:forward(imageInput)
+    self.LSTM.module.module.modules[1].prevCell = nil
     --Go id is 2, Eos id is 3
     local result = {}
     local textTensor
     local textInput
     local count = 1
+
+
     if not beam_search then
         local lastWordIdx = 2
 
@@ -86,36 +81,16 @@ function vggLSTM:predict(imageInput, beam_search, cuda)
                 textTensor = textTensor:cuda()
             end
             if count ~= 1 then
-                -- print("lllll_1")
-                -- print("User prev output size")
-                -- print(self.LSTM.module.module.modules[1].userPrevOutput:size())
-                -- print("LSTM hidden size")
-                -- print(self.prevHidden_2:size())
                 self.LSTM.module.module.modules[1].userPrevOutput = self.prevHidden_1
-                self.LSTM.module.module.modules[2].userPrevOutput = self.prevHidden_2
-                -- print("lllll_2")
                 self.LSTM.module.module.modules[1].userPrevCell = self.prevCell_1
-                -- print("lllll_3")
-                self.LSTM.module.module.modules[2].userPrevCell = self.prevCell_2
             end
 
-            -- if count == 1 then
-            --     self.LSTM.module.module.modules[1].cell:zero()
-            --     self.LSTM.module.module.modules[2].
-            -- end 
-            -- print(textTensor:type())
-            -- print(textTensor)
-
-            textInput = self.embedding_vec:forward(textTensor)
             -- print(textInput:size())
             self.LSTMoutput = self.LSTM:forward(textInput)
             -- print(self.LSTMout:size())
             self.prevCell_1 = self.LSTM.module.module.modules[1].cell
             self.prevHidden_1 = self.LSTM.module.module.modules[1].output
-            -- print(self.prevCell_1)
-            self.prevCell_2 = self.LSTM.module.module.modules[2].cell
-            self.prevHidden_2 = self.LSTM.module.module.modules[2].output
-            -- print(self.prevCell_2)
+            
             val, idx = torch.max(self.LSTMoutput:float(), 2)
             lastWordIdx = torch.totable(idx)[1][1]
             print(lastWordIdx .. ' ' .. self.ivocab[lastWordIdx])

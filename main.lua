@@ -93,9 +93,17 @@ if opt.cuda and opt.useWeights then
     model = torch.load(opt.weightsDir .. opt.model .. '_weights.t7')
     -- model:float()
     -- cudnn.convert(model, cudnn)
-else 
+else
+    require 'cunn'
+    require 'cudnn'
+    require 'cutorch' 
     model = ImgCap.vggLSTM(config)
-    torch.save(opt.weightsDir .. opt.model .. '_weights.t7', model:clearState())
+--    local trained = torch.load(opt.weightsDir .. opt.model .. '_weights.t7')
+--    model.embedding_vec = trained.embedding_vec
+--    model.visualRescale = trained.visualRescale
+--    model.LSTM = trained.LSTM 
+--    trained = nil
+    collectgarbage()   
 end
 
 -----------------------------------------------------------------------
@@ -121,22 +129,6 @@ if opt.cuda then
     cutorch.setDevice(1)
     cudnn.convert(model, cudnn)
 
-    -- if opt.nGPU > 1 then
-    --     print("Using " .. opt.nGPU .. ' GPUs.')
-    --     local singlemodel = model:float()
-    --     print('copy single model')
-    --     collectgarbage()
-    --     model = nn.DataParallelTable(1, true, false)
-    --         for i = 1, opt.nGPU do
-    --             print(i)
-    --             cutorch.setDevice(i)
-    --             model:add(singlemodel:clone():cuda(), i)
-    --             print(i .. ' end')
-    --         end
-    --     cutorch.setDevice(1)
-    -- else 
-    --     model:cuda()
-    -- end
     model:cuda()
     criterion:cuda()
 
@@ -286,12 +278,13 @@ else
     require 'ImgCapModel/vggLSTM'
     for i = 1, #dataset do 
     -- for i = 1, 100 do 
-        local image = image_features[string.format("%012d", dataset[idx].image_id)]
+        local image = image_features[string.format("%012d", dataset[i].image_id)]
         if opt.cuda then 
             image = image:cuda()
         end
         -- predict(imageinput, beamsearch, cuda)
         local caption = model:predict(image, false, opt.cuda)
+        model.clearState()
         -- logger:add{dataset[i].image_id, caption}
         file:write(dataset[i].image_id .. " " .. caption .. "\n")
         print("No. " .. i .. " sample finished")
