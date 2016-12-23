@@ -110,9 +110,9 @@ if opt.cuda then
     require 'cunn'
     require 'cudnn'
     require 'cutorch'
-    cudnn.benchmark = true
-    cudnn.fastest = true
-    cutorch.setDevice(opt.gpuid)
+    -- cudnn.benchmark = true
+    -- cudnn.fastest = true
+    cutorch.setDevice(1)
     cudnn.convert(model, cudnn)
 
     -- if opt.nGPU > 1 then
@@ -199,6 +199,9 @@ engine.hooks.onForwardCriterion = function(state)
 end
 
 engine.hooks.onBackward = function(state)
+    local maxGrad = torch.max(state.gradParams)
+    local minGrad = torch.min(state.gradParams)
+    print("Range for the gradients: Max Gradients: " .. maxGrad .. " Min Gradients: " .. minGrad)
     state.gradParams = torch.clamp(state.gradParams, -1, 1)
 end 
 
@@ -229,7 +232,7 @@ if not opt.predictVal then
             network = model,
             criterion = criterion,
             iterator = getIterator('train'),
-            optimMethod = optim.sdg,
+            optimMethod = optim.adam,
             maxepoch = 1,
             config = {
                 learningRate = lr,
@@ -239,12 +242,14 @@ if not opt.predictVal then
         }
         cutorch.synchronize()
         trainLoss = meter:value()/opt.batchsize
+
         -- engine:test {
         --     network = model,
         --     criterion = criterion,
         --     iterator = getIterator('val')
         -- }
         -- cutorch.synchronize()
+
         valLoss = meter:value()/opt.batchsize
         current_loss = trainLoss
 
@@ -264,20 +269,22 @@ if not opt.predictVal then
     end 
 else 
     print("Start Predicting")
-    logger = optim.Logger('logs/prediction.log')
-    logger:setNames{'Image ID', 'Caption'}
+    file = io.open("logs/prediction.log", "w")
+    -- logger = optim.Logger('logs/prediction.log')
+    -- logger:setNames{'Image ID', 'Caption'}
     local dataset = ld:loadData("val")
     local trans = require 'util/transform'
     require 'ImgCapModel/vggLSTM'
-    -- for i = 1, #dataset do 
-    for i = 1, 100 do 
+    for i = 1, #dataset do 
+    -- for i = 1, 100 do 
         local image = trans.onInputImage(ld:loadImage("val", dataset[i].image_id))
         if opt.cuda then 
             image = image:cuda()
         end
         -- predict(imageinput, beamsearch, cuda)
         local caption = model:predict(image, false, opt.cuda)
-        logger:add{dataset[i].image_id, caption}
+        -- logger:add{dataset[i].image_id, caption}
+        file:write(dataset[i].image_id .. " " .. caption .. "\n")
         print("No. " .. i .. " sample finished")
     end 
 end

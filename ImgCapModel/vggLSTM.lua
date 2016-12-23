@@ -117,25 +117,51 @@ function vggLSTM:predict(imageInput, beam_search, cuda)
     --Go id is 2, Eos id is 3
     local result = {}
     local textTensor
-    local count = 0
+    local textInput
+    local count = 1
     if not beam_search then 
         local lastWordIdx = 2
-        textTensor = torch.IntTensor({lastWordIdx})
-        if cuda then 
-            textTensor = textTensor:cuda()
-        end 
+
         while(lastWordIdx ~= 3) and count < 40 do 
-            
+            textTensor = torch.IntTensor({lastWordIdx})
+            if cuda then 
+                textTensor = textTensor:cuda()
+            end
+            if count ~= 1 then
+                -- print("lllll_1")
+                -- print("User prev output size")
+                -- print(self.LSTM.module.module.modules[1].userPrevOutput:size())
+                -- print("LSTM hidden size")
+                -- print(self.prevHidden_2:size())
+                self.LSTM.module.module.modules[1].userPrevOutput = self.prevHidden_1
+                self.LSTM.module.module.modules[2].userPrevOutput = self.prevHidden_2
+                -- print("lllll_2")
+                self.LSTM.module.module.modules[1].userPrevCell = self.prevCell_1
+                -- print("lllll_3")
+                self.LSTM.module.module.modules[2].userPrevCell = self.prevCell_2
+            end
+
+            -- if count == 1 then
+            --     self.LSTM.module.module.modules[1].cell:zero()
+            --     self.LSTM.module.module.modules[2].
+            -- end 
             -- print(textTensor:type())
             -- print(textTensor)
-            -- local textInput = self.embedding_vec:forward(textTensor)
-            
-            local LSTMout = self.LSTM:forward(LSTMout)
-            val, idx = torch.max(LSTMout:float(),2)
+
+            textInput = self.embedding_vec:forward(textTensor)
+            -- print(textInput:size())
+            self.LSTMoutput = self.LSTM:forward(textInput)
+            -- print(self.LSTMout:size())
+            self.prevCell_1 = self.LSTM.module.module.modules[1].cell
+            self.prevHidden_1 = self.LSTM.module.module.modules[1].output
+            -- print(self.prevCell_1)
+            self.prevCell_2 = self.LSTM.module.module.modules[2].cell
+            self.prevHidden_2 = self.LSTM.module.module.modules[2].output
+            -- print(self.prevCell_2)
+            val, idx = torch.max(self.LSTMoutput:float(),2)
             lastWordIdx = torch.totable(idx)[1][1] 
             print(lastWordIdx .. ' ' .. self.ivocab[lastWordIdx])
             table.insert(result,lastWordIdx)
-            -- print(lastWordIdx)
             count = count + 1
         end
     end
@@ -156,7 +182,7 @@ end
 function vggLSTM:parameters()
     local modules = nn.Parallel()
     modules:add(self.embedding_vec)
-           :add(self.imageModel)
+           :add(self.visualRescale)
            :add(self.LSTM)
     return modules:parameters()
 end
