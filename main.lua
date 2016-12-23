@@ -53,11 +53,9 @@ function getIterator(data_type)
             return tnt.BatchDataset{
                 batchsize = opt.batchsize,
                 dataset = tnt.ListDataset{
-                    list = torch.range(1, #dataset / 5):long(),
+                    list = torch.range(1, #dataset):long(),
                     load = function(idx)
         		local id = string.format("%012d", dataset[idx].image_id)
-			--print(dataset[idx].image_id)
-                        --print(image_features[dataset[idx].image_id]:size())
                         return {
                             image = image_features[id],
                             text = trans.onInputText(dataset[idx].caption),
@@ -160,6 +158,7 @@ print(model)
 -----------------------------------------------------------------------
 
 engine.hooks.onStart = function(state)
+    collectgarbage()
     meter:reset()
     clerr:reset()
     timer:reset()

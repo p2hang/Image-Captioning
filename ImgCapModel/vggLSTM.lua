@@ -48,6 +48,13 @@ function vggLSTM:forward(input)
     return self.output
 end
 
+
+function vggLSTM:clearState()
+    nn.utils.clear(self, 'visualFeatureRescaled', 'lSTMout', 'output', 'text_embedding', 'text_embedding_transpose', '')
+    return parent.clearState(self)
+
+end
+
 function vggLSTM:backward(input, grad)
 
     local gradT = self.output_transpose:backward(self.LSTMout, grad)
