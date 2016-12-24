@@ -17,3 +17,8 @@ sh preprocess.sh
 th main.lua -cuda # If you use cuda  
 
 ```
+
+If you want to use the model without the need to use entire VGG-19 for each forward. simply type
+```
+git checkout sep
+```
