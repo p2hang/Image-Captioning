@@ -4,9 +4,7 @@ require 'os'
 require 'xlua'
 require 'math'
 ld = require "util/load_data"
--- require 'cunn'
--- require 'cudnn'
--- require 'loadcaffe'
+
 
 local tnt = require 'torchnet'
 local optParser = require 'opts'
@@ -131,9 +129,8 @@ if opt.cuda then
     --             print(i .. ' end')
     --         end
     --     cutorch.setDevice(1)
-    -- else 
-    --     model:cuda()
     -- end
+
     model:cuda()
     criterion:cuda()
 
@@ -275,20 +272,18 @@ if not opt.predictVal then
 else 
     print("Start Predicting")
     file = io.open("logs/prediction.log", "w")
-    -- logger = optim.Logger('logs/prediction.log')
-    -- logger:setNames{'Image ID', 'Caption'}
     local dataset = ld:loadData("val")
     local trans = require 'util/transform'
     require 'ImgCapModel/vggLSTM'
-    for i = 1, #dataset do 
-    -- for i = 1, 100 do 
+
+    -- for i = 1, #dataset do 
+    for i = 1, 100 do 
         local image = trans.onInputImage(ld:loadImage("val", dataset[i].image_id))
         if opt.cuda then 
             image = image:cuda()
         end
         -- predict(imageinput, beamsearch, cuda)
         local caption = model:predict(image, false, opt.cuda)
-        -- logger:add{dataset[i].image_id, caption}
         file:write(dataset[i].image_id .. " " .. caption .. "\n")
         print("No. " .. i .. " sample finished")
     end 

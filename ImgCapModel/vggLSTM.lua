@@ -79,7 +79,7 @@ function vggLSTM:forward(input)
     self.visualFeatureRescaled = self.visualRescale:forward(self.outputImageModel)
 
     -- vggLSTM -> LSTM -> sequencer -> recursor -> LSTMcell -> nn.LSTM, init h0 with visual feature
-    self.LSTM.module.module.modules[1].userPrevOutput = self.visualFeatureRescaled
+    self.LSTM.module.module.modules[1].userPrevOutput = self.visualFeatureRescaled:clone()
 
     -- LSTM
     self.text_embedding = self.embedding_vec:forward(input.text)
@@ -111,18 +111,21 @@ function vggLSTM:predict(imageInput, beam_search, cuda)
     assert(imageInput:size()[2] == 224, "Size error, predict image input size should be 224 * 224")
     assert(imageInput:size()[3] == 224, "Size error, predict image input size should be 224 * 224")
 
-    -- self.LSTM.module.module.modules[1].userPrevCell = self.LSTM.module.module.modules[1].zeroTensor
-    -- self.LSTM.module.module.modules[2].userPrevCell = self.LSTM.module.module.modules[2].zeroTensor
-    -- self.LSTM.module.module.modules[2].userPrevOutput = self.LSTM.module.module.modules[2].zeroTensor
 
     local outputImageModel = self.imageModel:forward(imageInput)
     local visualFeatureRescaled = self.visualRescale:forward(outputImageModel)
-    self.LSTM.module.module.modules[1].userPrevOutput = self.visualFeatureRescaled
+    self.LSTM.module.module.modules[1].userPrevOutput = visualFeatureRescaled
+    -- print(visualFeatureRescaled)
     --Go id is 2, Eos id is 3
     local result = {}
     local textTensor
     local textInput
     local count = 1
+
+    -- self.LSTM.module.module.modules[2].userPrevOutput= nil
+    -- self.LSTM.module.module.modules[1].userPrevCell = nil
+    -- self.LSTM.module.module.modules[2].userPrevCell = nil
+
     if not beam_search then 
         local lastWordIdx = 2
 
@@ -131,40 +134,50 @@ function vggLSTM:predict(imageInput, beam_search, cuda)
             if cuda then 
                 textTensor = textTensor:cuda()
             end
+            self.LSTM.module.module.modules[1].step = 1
+            self.LSTM.module.module.modules[2].step = 1
             if count ~= 1 then
                 -- print("lllll_1")
                 -- print("User prev output size")
                 -- print(self.LSTM.module.module.modules[1].userPrevOutput:size())
                 -- print("LSTM hidden size")
                 -- print(self.prevHidden_2:size())
-                self.LSTM.module.module.modules[1].userPrevOutput = self.prevHidden_1
-                self.LSTM.module.module.modules[2].userPrevOutput= self.prevHidden_2
+                self.LSTM.module.module.modules[1].userPrevOutput = self.prevHidden_1:clone()
+                self.LSTM.module.module.modules[2].userPrevOutput = self.prevHidden_2:clone()
                 -- print("lllll_2")
-                self.LSTM.module.module.modules[1].userPrevCell = self.prevCell_1
+                self.LSTM.module.module.modules[1].userPrevCell = self.prevCell_1:clone()
                 -- print("lllll_3")
-                self.LSTM.module.module.modules[2].userPrevCell = self.prevCell_2
+                self.LSTM.module.module.modules[2].userPrevCell = self.prevCell_2:clone()
             end
 
 
-
+            -- print(#self.LSTM.module.module.modules[1].cells .. " " .. self.LSTM.module.module.modules[1].step)
             textInput = self.embedding_vec:forward(textTensor)
             -- print(textInput:size())
             -- if count == 1 then
             self.LSTMoutput = self.LSTM:forward(textInput)
+            -- print(self.LSTMoutput)
             -- else
             --     print(self.prevHidden_2:size())
             --     self.LSTMoutput = self.LSTM:forward(self.prevHidden_2:view(1,-1))
             -- end
 
-            self.prevCell_1 = self.LSTM.module.module.modules[1].cell
-            self.prevHidden_1 = self.LSTM.module.module.modules[1].output
 
-            self.prevCell_2 = self.LSTM.module.module.modules[2].cell
-            self.prevHidden_2 = self.LSTM.module.module.modules[2].output
+            -- print('Norm: ')
+            -- print(torch.norm(self.prevCell_1:float()))
+            -- print('Median: ')
+            -- print(torch.median(self.prevCell_1:float()))
+            
+            self.prevCell_1 = self.LSTM.module.module.modules[1].cell:clone()
+            self.prevHidden_1 = self.LSTM.module.module.modules[1].output:clone()
+            -- print(self.prevHidden_1)
+            self.prevCell_2 = self.LSTM.module.module.modules[2].cell:clone()
+            self.prevHidden_2 = self.LSTM.module.module.modules[2].output:clone()
+        
 
             val, idx = torch.max(self.LSTMoutput:float(),2)
             lastWordIdx = torch.totable(idx)[1][1] 
-            print(lastWordIdx .. ' ' .. self.ivocab[lastWordIdx])
+            -- print(lastWordIdx .. ' ' .. self.ivocab[lastWordIdx])
             table.insert(result,lastWordIdx)
             count = count + 1
         end
