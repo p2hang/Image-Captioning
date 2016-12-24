@@ -20,7 +20,6 @@ function vggLSTM:__init(config)
         :add(nn.Linear(4096, config.embeddingDim))
 
     -- language model.
-    nn.FastLSTM.bn = true
     local LSTMcell = nn.Sequential()
         :add(nn.FastLSTM(config.embeddingDim, config.embeddingDim, 60))
         :add(nn.Linear(config.embeddingDim, self.num_words))
@@ -35,7 +34,8 @@ function vggLSTM:forward(input)
     self.visualFeatureRescaled = self.visualRescale:forward(input.image)
 
     -- vggLSTM -> LSTM -> sequencer -> recursor -> LSTMcell -> nn.LSTM, init h0 with visual feature
-    self.LSTM.module.module.modules[1].userPrevOutput = self.visualFeatureRescaled
+    self.LSTM.module.module.modules[1].userPrevOutput = nn.rnn.recursiveCopy(
+                self.LSTM.module.module.modules[1].userPrevOutput, self.visualFeatureRescaled)
 
     -- LSTM
     self.text_embedding = self.embedding_vec:forward(input.text)
@@ -63,11 +63,14 @@ function vggLSTM:backward(input, grad)
 end
 
 function vggLSTM:predict(imageInput, beam_search, cuda)
-    self.LSTM.module.module.modules[1].userPrevOutput = self.visualRescale:forward(imageInput)
+    self.LSTM.module.module.modules[1].userPrevOutput = nn.rnn.recursiveCopy(
+		self.LSTM.module.module.modules[1].userPrevOutput, self.visualRescale:forward(imageInput))
     self.LSTM.module.module.modules[1].prevCell = nil
     --Go id is 2, Eos id is 3
     local result = {}
     local textTensor
+    local prevCell_1
+    local prevHidden_1
     local textInput
     local count = 1
 
@@ -81,19 +84,20 @@ function vggLSTM:predict(imageInput, beam_search, cuda)
                 textTensor = textTensor:cuda()
             end
             if count ~= 1 then
-                self.LSTM.module.module.modules[1].userPrevOutput = self.prevHidden_1
-                self.LSTM.module.module.modules[1].userPrevCell = self.prevCell_1
+                self.LSTM.module.module.modules[1].userPrevOutput = nn.rnn.recursiveCopy(self.LSTM.module.module.modules[1].userPrevOutput, prevHidden_1)
+                self.LSTM.module.module.modules[1].userPrevCell = nn.rnn.recursiveCopy(self.LSTM.module.module.modules[1].userPrevCell, prevCell_1)
             end
 
+	    textInput = self.embedding_vec:forward(textTensor)
             -- print(textInput:size())
             self.LSTMoutput = self.LSTM:forward(textInput)
             -- print(self.LSTMout:size())
-            self.prevCell_1 = self.LSTM.module.module.modules[1].cell
-            self.prevHidden_1 = self.LSTM.module.module.modules[1].output
+            prevCell_1 = nn.rnn.recursiveCopy(prevCell_1, self.LSTM.module.module.modules[1].cell)
+            prevHidden_1 = nn.rnn.recursiveCopy(prevHidden_1, self.LSTM.module.module.modules[1].output)
             
             val, idx = torch.max(self.LSTMoutput:float(), 2)
             lastWordIdx = torch.totable(idx)[1][1]
-            print(lastWordIdx .. ' ' .. self.ivocab[lastWordIdx])
+            -- print(lastWordIdx .. ' ' .. self.ivocab[lastWordIdx])
             table.insert(result, lastWordIdx)
             count = count + 1
         end

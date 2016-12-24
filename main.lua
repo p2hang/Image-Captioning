@@ -236,7 +236,7 @@ if not opt.predictVal then
             config = {
                 learningRate = lr,
                 momentum = opt.momentum,
---                wd = opt.weightDecay
+                wd = opt.weightDecay
             }
         }
         cutorch.synchronize()
